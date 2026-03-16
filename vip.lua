@@ -1328,41 +1328,107 @@ end)
 -- ══════════════════════════════════════════════
 --  AUTO HOP
 -- ══════════════════════════════════════════════
-local HOP_INTERVAL=10*60; local HOP_MIN_PLAYERS=10
-local autoHopStart=tick(); local isHopping=false
+local HOP_INTERVAL = 10 * 60
+local autoHopStart = tick()
+local isHopping    = false
+
+local function hopLog(msg, col)
+    pcall(function()
+        HopTimerL.Text = msg
+        HopTimerL.TextColor3 = col or C.ORANGE
+        HopIcon.TextColor3   = col or C.ORANGE
+    end)
+end
 
 local function doHop()
-    if isHopping then return end; isHopping=true
+    if isHopping then return end
+    isHopping = true
     SaveAllState()
-    HopTimerL.Text="⏳  Đang tìm server..."
-    HopTimerL.TextColor3=C.ORANGE; HopIcon.TextColor3=C.ORANGE
+    hopLog("⏳  Đang quét server...", C.ORANGE)
+
     t_spawn(function()
-        pcall(function()
-            local placeId=game.PlaceId; local best=nil; local bestPlayers=0; local cursor=""
-            for _=1,5 do
-                local ok,res=pcall(function()
-                    return S.HTTP:JSONDecode(game:HttpGet(
-                        "https://games.roblox.com/v1/games/"..placeId..
-                        "/servers/Public?sortOrder=Desc&limit=25&cursor="..cursor))
-                end)
-                if ok and res and res.data then
-                    for _,sv in ipairs(res.data) do
-                        if sv.id~=game.JobId and sv.playing>=HOP_MIN_PLAYERS
-                        and sv.playing<sv.maxPlayers and sv.playing>bestPlayers then
-                            bestPlayers=sv.playing; best=sv.id
-                        end
-                    end
-                    cursor=res.nextPageCursor or ""
-                    if cursor=="" or best then break end
+        local placeId = game.PlaceId
+        local servers = {}
+        local errMsg  = "Không rõ"
+
+        -- Bước 1: fetch server list (tối đa 6 trang x 100)
+        local cursor = ""
+        for page = 1, 6 do
+            local url = "https://games.roblox.com/v1/games/"..placeId
+                .."/servers/Public?sortOrder=Desc&limit=100"
+                ..(cursor~="" and ("&cursor="..cursor) or "")
+
+            local ok1, raw = pcall(function() return game:HttpGet(url) end)
+            if not ok1 then errMsg = "HttpGet fail"; break end
+            if not raw or #raw < 10 then errMsg = "Response rỗng"; break end
+
+            local ok2, data = pcall(function() return S.HTTP:JSONDecode(raw) end)
+            if not ok2 or not data then errMsg = "JSON fail"; break end
+            if not data.data then errMsg = "data.data nil"; break end
+
+            for _, sv in ipairs(data.data) do
+                if type(sv)=="table" and sv.id and sv.id~=game.JobId
+                and sv.playing and sv.maxPlayers
+                and sv.playing >= 1
+                and sv.playing < sv.maxPlayers then
+                    table.insert(servers, sv)
                 end
             end
-            HopTimerL.Text=best and ("→ sv "..bestPlayers.." người") or "→ random sv"
-            t_wait(1.5)
-            if best then S.TS:TeleportToPlaceInstance(placeId,best,LP)
-            else S.TS:Teleport(placeId,LP) end
-        end)
-        t_wait(5); autoHopStart=tick(); isHopping=false
-        HopTimerL.TextColor3=C.PURPLE; HopIcon.TextColor3=C.PURPLE
+
+            hopLog("⏳  Quét trang "..page.." ("..#servers.." sv)", C.ORANGE)
+
+            local nc = (data.nextPageCursor and data.nextPageCursor~="") and data.nextPageCursor or ""
+            if nc == "" then break end
+            cursor = nc
+            if #servers >= 30 then break end
+            task.wait(0.25)
+        end
+
+        -- Bước 2: chọn server tốt nhất
+        local best = nil
+        if #servers > 0 then
+            local bestScore = -math.huge
+            for _, sv in ipairs(servers) do
+                local fill  = sv.playing / math.max(sv.maxPlayers, 1)
+                local score = sv.playing - (fill > 0.9 and 999 or 0)
+                if score > bestScore then bestScore = score; best = sv end
+            end
+            hopLog("✅  "..#servers.." sv — chọn: "..best.playing.."/"..best.maxPlayers, C.LIME)
+        else
+            hopLog("❌  Không tìm được sv: "..errMsg, C.ROSE)
+        end
+
+        task.wait(1.2)
+
+        -- Bước 3: teleport
+        if best then
+            -- Thử TeleportToPlaceInstance
+            local ok1 = pcall(function()
+                S.TS:TeleportToPlaceInstance(placeId, best.id, LP)
+            end)
+            if not ok1 then
+                -- Thử TeleportAsync (một số executor cần cách này)
+                task.wait(1.5)
+                local ok2 = pcall(function()
+                    local opt = Instance.new("TeleportOptions")
+                    opt.ServerInstanceId = best.id
+                    S.TS:TeleportAsync(placeId, {LP}, opt)
+                end)
+                if not ok2 then
+                    hopLog("❌  Teleport thất bại", C.ROSE)
+                end
+            end
+        else
+            -- Không có server: Teleport về game (sẽ vào server mới)
+            local ok = pcall(function()
+                S.TS:Teleport(placeId, LP)
+            end)
+            if not ok then hopLog("❌  Fallback fail", C.ROSE) end
+        end
+
+        task.wait(8)
+        autoHopStart = tick(); isHopping = false
+        hopLog(string.format("⏳  Auto Hop: %02d:00", math.floor(HOP_INTERVAL/60)), C.PURPLE)
     end)
 end
 
