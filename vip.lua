@@ -1385,9 +1385,13 @@ local isHopping    = false
 
 local function hopLog(msg, col)
     pcall(function()
-        HopTimerL.Text = msg
-        HopTimerL.TextColor3 = col or C.ORANGE
-        HopIcon.TextColor3   = col or C.ORANGE
+        if HopTimerL then
+            HopTimerL.Text = msg
+            HopTimerL.TextColor3 = col or C.ORANGE
+        end
+        if HopIcon then
+            HopIcon.TextColor3 = col or C.ORANGE
+        end
     end)
 end
 
@@ -1453,28 +1457,26 @@ local function doHop()
 
         -- Bước 3: teleport
         if best then
-            -- Thử TeleportToPlaceInstance
-            local ok1 = pcall(function()
-                S.TS:TeleportToPlaceInstance(placeId, best.id, LP)
-            end)
-            if not ok1 then
-                -- Thử TeleportAsync (một số executor cần cách này)
-                task.wait(1.5)
-                local ok2 = pcall(function()
-                    local opt = Instance.new("TeleportOptions")
-                    opt.ServerInstanceId = best.id
-                    S.TS:TeleportAsync(placeId, {LP}, opt)
+            hopLog("🚀  Đang teleport...", C.LIME)
+            -- Retry tối đa 3 lần
+            local teleported = false
+            for attempt = 1, 3 do
+                local ok = pcall(function()
+                    S.TS:TeleportToPlaceInstance(placeId, best.id, LP)
                 end)
-                if not ok2 then
-                    hopLog("❌  Teleport thất bại", C.ROSE)
+                if ok then
+                    teleported = true
+                    break
                 end
+                hopLog("⚠  Thử lần "..attempt.."/3...", C.ORANGE)
+                task.wait(2)
+            end
+            if not teleported then
+                hopLog("❌  Teleport thất bại cả 3 lần", C.ROSE)
             end
         else
-            -- Không có server: Teleport về game (sẽ vào server mới)
-            local ok = pcall(function()
-                S.TS:Teleport(placeId, LP)
-            end)
-            if not ok then hopLog("❌  Fallback fail", C.ROSE) end
+            -- Không tìm được server cụ thể: không hop
+            hopLog("❌  Không tìm thấy server nào", C.ROSE)
         end
 
         task.wait(8)
