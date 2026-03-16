@@ -523,22 +523,38 @@ local function isTargetRunning(tChar)
     return dot > 0.45
 end
 
--- Detect Ken bằng velocity spike
+-- Detect Ken: đếm số lần target THỰC SỰ dodge ngắn
+-- Phân biệt với chạy thường bằng cách đo vị trí thay đổi đột ngột nhỏ
+-- Chạy thường: di chuyển liên tục, ổn định
+-- Ken dodge: teleport ngắn 2-12 studs, velocity thay đổi hướng đột ngột
 local KenTrack = {}
 local function detectKen(tChar)
     if not tChar then return false end
     local hrp = tChar:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
     local name = tChar.Name
     local now  = tick()
-    local speed = hrp.AssemblyLinearVelocity.Magnitude
-    KenTrack[name] = KenTrack[name] or {spikes=0, last=now, prev=0}
+    KenTrack[name] = KenTrack[name] or {dodges=0, lastDodge=0, lastPos=hrp.Position, lastVelDir=Vector3.new()}
     local kt = KenTrack[name]
-    if speed > 52 and kt.prev < 18 then
-        kt.spikes = kt.spikes + 1; kt.last = now
+    local curPos = hrp.Position
+    local vel    = hrp.AssemblyLinearVelocity
+    local speed  = vel.Magnitude
+    -- Dodge thực sự: velocity đổi hướng > 90 độ đột ngột (không phải chạy thẳng)
+    local velDot = 1
+    if speed > 5 and kt.lastVelDir.Magnitude > 0 then
+        velDot = vel.Unit:Dot(kt.lastVelDir)
     end
-    if now - kt.last > 3 then kt.spikes = 0 end
-    kt.prev = speed
-    return kt.spikes >= 2
+    -- Tính là dodge nếu: speed vẫn > 30 NHƯNG hướng đổi mạnh (dot < -0.3)
+    -- Đây là dấu hiệu blink/dash đổi hướng, không phải chạy thường
+    if speed > 30 and velDot < -0.3 and (now - kt.lastDodge) > 0.3 then
+        kt.dodges = kt.dodges + 1
+        kt.lastDodge = now
+    end
+    -- Reset nếu 5 giây không dodge
+    if now - kt.lastDodge > 5 then kt.dodges = 0 end
+    kt.lastPos    = curPos
+    kt.lastVelDir = speed > 5 and vel.Unit or kt.lastVelDir
+    -- Cần 5+ dodge mới kết luận có Ken (rất chắc chắn, tránh false positive)
+    return kt.dodges >= 5
 end
 
 -- Combo controller loop
@@ -548,12 +564,11 @@ t_spawn(function()
     while t_wait(0.1) do
         pcall(function()
             local target = getgenv().LockedTarget
-            -- Không có target → reset về fruit
-            if not target or not isTargetValid(target) or getgenv().Retreating then
-                if Combo.Phase ~= "idle" then
-                    Combo.Phase = "idle"
-                    setBananaWeapon("fruit")
-                end
+            -- Không có target / retreat / run → LUÔN về fruit ngay
+            if not target or not isTargetValid(target) or getgenv().Retreating or RunState.Active then
+                Combo.Phase = "idle"
+                Combo.KenBreaks = 0
+                setBananaWeapon("fruit")
                 return
             end
             local myChar = LP.Character; if not myChar then return end
@@ -564,8 +579,8 @@ t_spawn(function()
             local running = isTargetRunning(target)
             local hasKen  = detectKen(target)
 
-            -- Tránh switch quá nhanh (tối thiểu 1.2s giữ 1 weapon)
-            if now - Combo.LastSwitch < 1.2 then return end
+            -- Tránh switch quá nhanh (tối thiểu 3s giữ 1 weapon)
+            if now - Combo.LastSwitch < 3.0 then return end
 
             -- ── QUYẾT ĐỊNH PHASE ──
             -- Ưu tiên: ken_break > fruit_dmg > chase
@@ -597,16 +612,17 @@ t_spawn(function()
                     Combo.KenBreaks = 0
 
                 elseif newPhase == "chase" then
-                    -- Fruit ranged khi đuổi
+                    -- Đuổi theo: fruit ranged, giống fruit_dmg
                     setBananaWeapon("fruit")
+                    Combo.Phase = "fruit_dmg"  -- BananaCat tự xử lý ranged vs melee
                 end
             end
 
             -- Sau ken_break: đếm số lần → về fruit
             if Combo.Phase == "ken_break" then
                 Combo.KenBreaks = Combo.KenBreaks + 1
-                -- 3 lần nhấn sword skill (mỗi lần ~1.2s) = về fruit
-                if Combo.KenBreaks >= 3 then
+                -- 2 lần phá ken rồi về fruit ngay để tiếp tục damage
+                if Combo.KenBreaks >= 2 then
                     Combo.Phase = "fruit_dmg"
                     Combo.LastSwitch = now
                     Combo.KenBreaks = 0
