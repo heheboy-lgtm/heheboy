@@ -478,201 +478,139 @@ end
 local function SmartEquipFruit() return getWeapon("Fruit") end
 
 -- ══════════════════════════════════════════════
---  SMART COMBO ENGINE
+--  COMBO ENGINE  — tích hợp với BananaCat Setting
+--  BananaCat đọc getgenv().Setting["Weapons"] để nhấn skill
+--  DORA chỉ toggle Enable ON/OFF đúng lúc, không tự nhấn key
 -- ══════════════════════════════════════════════
--- State
 local Combo = {
-    Phase       = "idle",   -- idle / ken_break / fruit_dmg / chase / cooldown
-    LastPhase   = tick(),
-    KenBreaks   = 0,        -- consecutive ken breaks done
-    LastSkill   = tick(),
-    Cooldown    = false,
-    SkillQueue  = {},       -- {key, holdTime}
-    PressedKeys = {},
+    Phase     = "idle",   -- idle / ken_break / fruit_dmg / chase
+    LastPhase = tick(),
+    KenBreaks = 0,
+    LastSwitch = tick(),
 }
 
-local SKILL_KEYS = {
-    Z = Enum.KeyCode.Z, X = Enum.KeyCode.X,
-    C = Enum.KeyCode.C, V = Enum.KeyCode.V, F = Enum.KeyCode.F,
-}
-
-local function pressKey(keyCode, holdTime)
+-- Helper: bật/tắt weapon trong BananaCat Setting
+local function setBananaWeapon(mode)
+    -- mode: "fruit" | "sword" | "both_off"
     pcall(function()
-        S.V:SendKeyEvent(true, keyCode, false, game)
-        task.delay(holdTime or 0.1, function()
-            pcall(function() S.V:SendKeyEvent(false, keyCode, false, game) end)
-        end)
+        local W = getgenv().Setting["Weapons"]
+        if not W then return end
+        if mode == "fruit" then
+            W["Blox Fruit"]["Enable"] = true
+            W["Sword"]["Enable"]      = false
+            getgenv().Setting["Method Click"]["Click Fruit"] = true
+            getgenv().Setting["Method Click"]["Click Sword"] = false
+        elseif mode == "sword" then
+            W["Blox Fruit"]["Enable"] = false
+            W["Sword"]["Enable"]      = true
+            getgenv().Setting["Method Click"]["Click Fruit"] = false
+            getgenv().Setting["Method Click"]["Click Sword"] = true
+        elseif mode == "both_off" then
+            W["Blox Fruit"]["Enable"] = false
+            W["Sword"]["Enable"]      = false
+        end
     end)
 end
 
-local function clickMouse()
-    pcall(function()
-        S.V:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-        task.delay(0.08, function()
-            pcall(function() S.V:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
-        end)
-    end)
-end
-
--- Detect if target is running away (velocity high, moving away from us)
+-- Detect target chạy ra xa
 local function isTargetRunning(tChar)
     if not tChar then return false end
     local tHRP = tChar:FindFirstChild("HumanoidRootPart"); if not tHRP then return false end
     local myHRP = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return false end
     local vel = tHRP.AssemblyLinearVelocity
-    local speed = vel.Magnitude
-    if speed < 20 then return false end
-    -- Check if moving away from us
-    local toTarget = (tHRP.Position - myHRP.Position).Unit
-    local targetDir = vel.Unit
-    local dot = toTarget:Dot(targetDir)
-    return dot > 0.4 and speed > 20
+    if vel.Magnitude < 22 then return false end
+    local dot = (tHRP.Position - myHRP.Position).Unit:Dot(vel.Unit)
+    return dot > 0.45
 end
 
--- Detect Ken (Observation Haki) - check if target has rapid dodge
--- We infer Ken by tracking if our hits are being dodged (target teleports slightly on hit)
+-- Detect Ken bằng velocity spike
 local KenTrack = {}
 local function detectKen(tChar)
     if not tChar then return false end
     local hrp = tChar:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
     local name = tChar.Name
-    local now = tick()
-    -- Track velocity spikes (Ken dodge = sudden velocity spike)
+    local now  = tick()
     local speed = hrp.AssemblyLinearVelocity.Magnitude
-    KenTrack[name] = KenTrack[name] or {spikes=0, lastCheck=now, lastSpeed=0}
+    KenTrack[name] = KenTrack[name] or {spikes=0, last=now, prev=0}
     local kt = KenTrack[name]
-    if speed > 50 and kt.lastSpeed < 20 then
-        kt.spikes = kt.spikes + 1
-        kt.lastCheck = now
+    if speed > 52 and kt.prev < 18 then
+        kt.spikes = kt.spikes + 1; kt.last = now
     end
-    if now - kt.lastCheck > 3 then kt.spikes = 0; kt.lastCheck = now end
-    kt.lastSpeed = speed
-    return kt.spikes >= 2  -- 2+ dodge spikes = likely has Ken
+    if now - kt.last > 3 then kt.spikes = 0 end
+    kt.prev = speed
+    return kt.spikes >= 2
 end
 
--- Main combo loop
+-- Combo controller loop
 t_spawn(function()
-    local lastComboTick = tick()
-    while t_wait(0.08) do
+    -- Khởi động: đảm bảo fruit là vũ khí chính
+    setBananaWeapon("fruit")
+    while t_wait(0.1) do
         pcall(function()
             local target = getgenv().LockedTarget
-            if not target or not isTargetValid(target) then
-                Combo.Phase = "idle"; return
+            -- Không có target → reset về fruit
+            if not target or not isTargetValid(target) or getgenv().Retreating then
+                if Combo.Phase ~= "idle" then
+                    Combo.Phase = "idle"
+                    setBananaWeapon("fruit")
+                end
+                return
             end
-            if getgenv().Retreating then Combo.Phase = "idle"; return end
-
             local myChar = LP.Character; if not myChar then return end
-            local myHum  = myChar:FindFirstChild("Humanoid"); if not myHum or myHum.Health <= 0 then return end
             local myHRP  = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
             local tHRP   = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
             local dist   = (myHRP.Position - tHRP.Position).Magnitude
             local now    = tick()
-
-            -- PHASE DECISION
             local running = isTargetRunning(target)
             local hasKen  = detectKen(target)
-            local tHum    = target:FindFirstChild("Humanoid")
-            local tHP     = tHum and tHum.Health or 0
-            local tMaxHP  = tHum and tHum.MaxHealth or 1
-            local tHPpct  = tHP / math.max(tMaxHP, 1)
 
-            -- Cool combo timing
-            local phaseTime = now - Combo.LastPhase
+            -- Tránh switch quá nhanh (tối thiểu 1.2s giữ 1 weapon)
+            if now - Combo.LastSwitch < 1.2 then return end
 
-            if dist > 80 then
-                -- Too far: equip fruit for ranged
-                Combo.Phase = "chase"
-                local fruit = getWeapon("Fruit")
-                if fruit then equipWeapon(fruit) end
-                return
+            -- ── QUYẾT ĐỊNH PHASE ──
+            -- Ưu tiên: ken_break > fruit_dmg > chase
+            -- chase chỉ khi target đang chạy VÀ không có ken
+
+            local newPhase = Combo.Phase
+
+            if hasKen and dist < 60 then
+                newPhase = "ken_break"
+            elseif running and dist > 40 then
+                newPhase = "chase"
+            elseif not running then
+                newPhase = "fruit_dmg"
             end
 
-            if Combo.Phase == "idle" or phaseTime > 4 then
-                -- Start new combo cycle
-                if hasKen then
-                    Combo.Phase = "ken_break"; Combo.LastPhase = now; Combo.KenBreaks = 0
-                elseif running then
-                    Combo.Phase = "chase"; Combo.LastPhase = now
-                else
-                    Combo.Phase = "fruit_dmg"; Combo.LastPhase = now
+            -- Nếu phase thay đổi thì switch weapon
+            if newPhase ~= Combo.Phase then
+                Combo.Phase = newPhase
+                Combo.LastSwitch = now
+                Combo.KenBreaks = 0
+
+                if newPhase == "ken_break" then
+                    -- Bật sword để BananaCat dùng Sword Z phá ken
+                    setBananaWeapon("sword")
+
+                elseif newPhase == "fruit_dmg" then
+                    -- Về fruit để BananaCat dùng Fruit Z/X/C
+                    setBananaWeapon("fruit")
+                    Combo.KenBreaks = 0
+
+                elseif newPhase == "chase" then
+                    -- Fruit ranged khi đuổi
+                    setBananaWeapon("fruit")
                 end
             end
 
-            -- EXECUTE PHASE
+            -- Sau ken_break: đếm số lần → về fruit
             if Combo.Phase == "ken_break" then
-                -- Ken Break: use Sword Z skill (ken breaker) + rapid clicks
-                if now - Combo.LastSkill < 0.35 then return end
-                Combo.LastSkill = now
-                local sword = getWeapon("Sword")
-                if sword then
-                    equipWeapon(sword)
-                    task.delay(0.12, function()
-                        if Combo.Phase == "ken_break" then
-                            pressKey(SKILL_KEYS.Z, 0.15)  -- Sword Z = ken break
-                            task.delay(0.18, function() clickMouse() end)
-                            task.delay(0.32, function() clickMouse() end)
-                        end
-                    end)
-                    Combo.KenBreaks = Combo.KenBreaks + 1
-                    if Combo.KenBreaks >= 3 then
-                        -- After 3 ken breaks, switch to fruit damage
-                        Combo.Phase = "fruit_dmg"; Combo.LastPhase = now; Combo.KenBreaks = 0
-                    end
-                else
-                    -- No sword: spam clicks to break ken
-                    clickMouse()
-                    task.delay(0.1, function() clickMouse() end)
-                    Combo.Phase = "fruit_dmg"; Combo.LastPhase = now
-                end
-
-            elseif Combo.Phase == "fruit_dmg" then
-                -- Fruit damage combo: Z → X → C in sequence
-                if now - Combo.LastSkill < 0.55 then return end
-                Combo.LastSkill = now
-                local fruit = getWeapon("Fruit")
-                if fruit then
-                    equipWeapon(fruit)
-                    task.delay(0.1, function()
-                        if not isTargetValid(getgenv().LockedTarget) then return end
-                        pressKey(SKILL_KEYS.Z, 0.18)
-                        task.delay(0.5, function()
-                            if not isTargetValid(getgenv().LockedTarget) then return end
-                            pressKey(SKILL_KEYS.X, 0.18)
-                            task.delay(0.5, function()
-                                if not isTargetValid(getgenv().LockedTarget) then return end
-                                pressKey(SKILL_KEYS.C, 0.18)
-                                -- After fruit combo: go back to ken break if needed
-                                task.delay(0.8, function()
-                                    if detectKen(getgenv().LockedTarget) then
-                                        Combo.Phase = "ken_break"; Combo.LastPhase = tick()
-                                    else
-                                        Combo.Phase = "idle"
-                                    end
-                                end)
-                            end)
-                        end)
-                    end)
-                else
-                    -- Fallback: sword + click
-                    local sword = getWeapon("Sword")
-                    if sword then equipWeapon(sword) end
-                    clickMouse()
-                    Combo.Phase = "idle"
-                end
-
-            elseif Combo.Phase == "chase" then
-                -- Target running: equip fruit, use F (transform if any) then Z ranged
-                if now - Combo.LastSkill < 0.7 then return end
-                Combo.LastSkill = now
-                local fruit = getWeapon("Fruit")
-                if fruit then
-                    equipWeapon(fruit)
-                    task.delay(0.12, function()
-                        pressKey(SKILL_KEYS.Z, 0.18)  -- ranged Z skill while chasing
-                        task.delay(0.45, function()
-                            if not running then Combo.Phase = "fruit_dmg"; Combo.LastPhase = tick() end
-                        end)
-                    end)
+                Combo.KenBreaks = Combo.KenBreaks + 1
+                -- 3 lần nhấn sword skill (mỗi lần ~1.2s) = về fruit
+                if Combo.KenBreaks >= 3 then
+                    Combo.Phase = "fruit_dmg"
+                    Combo.LastSwitch = now
+                    Combo.KenBreaks = 0
+                    setBananaWeapon("fruit")
                 end
             end
         end)
@@ -680,13 +618,23 @@ t_spawn(function()
 end)
 
 -- ══════════════════════════════════════════════
---  AUTO CLICK (Ken Breaker)
---  Rapid LMB when in close range with target
+--  AUTO CLICK — dùng VirtualInputManager
+--  Click khi cầm Sword (BananaCat không tự click sword)
 -- ══════════════════════════════════════════════
+local function clickMouse()
+    pcall(function()
+        S.V:SendMouseButtonEvent(0,0,0,true,game,0)
+        task.delay(0.08, function()
+            pcall(function() S.V:SendMouseButtonEvent(0,0,0,false,game,0) end)
+        end)
+    end)
+end
+
 t_spawn(function()
     local lastClick = tick()
-    while t_wait(0.04) do
+    while t_wait(0.05) do
         pcall(function()
+            if Combo.Phase ~= "ken_break" then return end
             local target = getgenv().LockedTarget
             if not target or not isTargetValid(target) then return end
             if getgenv().Retreating then return end
@@ -694,17 +642,15 @@ t_spawn(function()
             local myHRP = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
             local tHRP  = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
             local dist  = (myHRP.Position - tHRP.Position).Magnitude
-            -- Only auto-click when close enough (melee range)
-            if dist > 18 then return end
+            -- Click melee range khi đang phase ken_break
+            if dist > 20 then return end
             local now = tick()
-            -- Click rate: 8 clicks/s (natural-looking)
-            if now - lastClick < 0.125 then return end
+            if now - lastClick < 0.13 then return end
             lastClick = now
-            -- Only click if sword/melee equipped (avoid wasting fruit ammo)
-            local equipped = getEquippedTool()
-            if equipped and (equipped.ToolTip=="Sword" or equipped.ToolTip=="Melee"
-            or equipped.Name:find("Sword") or equipped.Name:find("Fist")
-            or equipped.Name:find("Blade") or equipped.Name:find("Katana")) then
+            -- Chỉ click khi đang cầm sword
+            local eq = getEquippedTool()
+            if eq and (eq.Name:find("Katana") or eq.Name:find("Sword") or eq.Name:find("Blade")
+            or eq.Name:find("Saber") or eq.Name:find("Cursed") or eq.ToolTip=="Sword") then
                 clickMouse()
             end
         end)
@@ -960,11 +906,8 @@ t_spawn(function()
             local d=(myHRP.Position-t.HumanoidRootPart.Position).Magnitude
             if d>ENGAGE_RANGE then clearTarget(); return end
             applyHitbox(t)
-            -- Weapon equip handled by combo engine; only equip fruit if no combo active
-            if Combo.Phase=="idle" or Combo.Phase=="chase" then
-                local fruit=SmartEquipFruit()
-                if fruit and fruit.Parent~=myChar then myHum:EquipTool(fruit) end
-            end
+            -- Weapon equip handled by Combo engine (toggles BananaCat Setting)
+            -- BananaCat itself handles EquipTool based on Setting["Weapons"]
         end)
     end
 end)
@@ -1538,4 +1481,4 @@ t_spawn(function()
     end
 end)
 
-print("DORA VIP v7 Loaded!")
+print("DORA VIP v8 — BananaCat integrated!")
