@@ -1,3 +1,12 @@
+-- ══════════════════════════════════════════════════════════
+--  DORA VIP  v7
+--  + Loading screen đẹp
+--  + Nút Reset gọn trong panel
+--  + Icon đầy đủ
+--  + Màu UI mới (Purple-Dark theme)
+--  - Bỏ Sea detection
+--  - Bỏ giờ VN
+-- ══════════════════════════════════════════════════════════
 
 -- ── ANTI-KICK ──
 pcall(function()
@@ -93,29 +102,38 @@ end
 task.spawn(function()
     local PG=Instance.new("ScreenGui")
     PG.Name="DoraWelcome"; PG.ResetOnSpawn=false; PG.Parent=SafeGui
+    -- Bottom-right popup
     local Pop=Instance.new("Frame",PG)
-    Pop.Size=UDim2.new(0,310,0,56); Pop.Position=UDim2.new(0.5,-155,0,-60)
+    Pop.Size=UDim2.new(0,260,0,60); Pop.Position=UDim2.new(1,-10,1,10)
+    Pop.AnchorPoint=Vector2.new(1,1)
     Pop.BackgroundColor3=Color3.fromRGB(10,8,20); Pop.BackgroundTransparency=1
     Pop.BorderSizePixel=0
     Instance.new("UICorner",Pop).CornerRadius=UDim.new(0,12)
     local _ps=Instance.new("UIStroke",Pop); _ps.Thickness=1.5
     _ps.Color=Color3.fromRGB(140,80,255)
+    -- Left purple accent bar
+    local _ab=Instance.new("Frame",Pop); _ab.Size=UDim2.new(0,3,1,-8)
+    _ab.Position=UDim2.new(0,6,0,4); _ab.BackgroundColor3=Color3.fromRGB(140,80,255)
+    _ab.BorderSizePixel=0; Instance.new("UICorner",_ab).CornerRadius=UDim.new(0,2)
     local T1=Instance.new("TextLabel",Pop)
-    T1.Size=UDim2.new(1,0,0.5,0); T1.BackgroundTransparency=1
-    T1.Text="⚡  DORA VIP đã sẵn sàng!"; T1.TextColor3=Color3.fromRGB(190,130,255)
-    T1.Font=Enum.Font.GothamBold; T1.TextSize=14; T1.TextTransparency=1
+    T1.Size=UDim2.new(1,-18,0,26); T1.Position=UDim2.new(0,14,0,4)
+    T1.BackgroundTransparency=1
+    T1.Text="⚡  DORA VIP da san sang!"; T1.TextColor3=Color3.fromRGB(190,130,255)
+    T1.Font=Enum.Font.GothamBold; T1.TextSize=13; T1.TextTransparency=1
+    T1.TextXAlignment=Enum.TextXAlignment.Left
     local T2=Instance.new("TextLabel",Pop)
-    T2.Size=UDim2.new(1,0,0.5,0); T2.Position=UDim2.new(0,0,0.5,0)
-    T2.BackgroundTransparency=1; T2.Text="👋  Chào mừng, "..LP.Name.."!"
+    T2.Size=UDim2.new(1,-18,0,22); T2.Position=UDim2.new(0,14,0,32)
+    T2.BackgroundTransparency=1; T2.Text="👋  Chao mung, "..LP.Name.."!"
     T2.TextColor3=Color3.fromRGB(255,196,50); T2.Font=Enum.Font.GothamBold
-    T2.TextSize=12; T2.TextTransparency=1
-    TweenService:Create(Pop,TweenInfo.new(0.4,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
-        {Position=UDim2.new(0.5,-155,0,-56),BackgroundTransparency=0}):Play()
+    T2.TextSize=11; T2.TextTransparency=1; T2.TextXAlignment=Enum.TextXAlignment.Left
+    -- Slide in from right
+    TweenService:Create(Pop,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
+        {Position=UDim2.new(1,-14,1,-14),BackgroundTransparency=0}):Play()
     TweenService:Create(T1,TweenInfo.new(0.4),{TextTransparency=0}):Play()
     TweenService:Create(T2,TweenInfo.new(0.4),{TextTransparency=0}):Play()
-    task.wait(2.8)
+    task.wait(3)
     TweenService:Create(Pop,TweenInfo.new(0.3,Enum.EasingStyle.Quart,Enum.EasingDirection.In),
-        {Position=UDim2.new(0.5,-155,0,-70),BackgroundTransparency=1}):Play()
+        {Position=UDim2.new(1,10,1,-14),BackgroundTransparency=1}):Play()
     TweenService:Create(T1,TweenInfo.new(0.3),{TextTransparency=1}):Play()
     TweenService:Create(T2,TweenInfo.new(0.3),{TextTransparency=1}):Play()
     task.wait(0.35); PG:Destroy()
@@ -418,19 +436,432 @@ local function SyncTarget()
 end
 
 -- ══════════════════════════════════════════════
---  EQUIP FRUIT
+--  WEAPON HELPERS
 -- ══════════════════════════════════════════════
-local function SmartEquipFruit()
+local function getWeapon(typ)
+    -- typ: "Fruit","Sword","Gun","Melee" or nil (any)
     if not LP.Character then return nil end
-    local tip="Blox Fruit"
-    for _,v in ipairs(LP.Backpack:GetChildren()) do
-        if v:IsA("Tool") and (v.ToolTip==tip or v.Name:find(tip)) then return v end
+    local function match(v)
+        if not v:IsA("Tool") then return false end
+        if typ=="Fruit" then return v.ToolTip=="Blox Fruit" or v.Name:find("Blox Fruit") end
+        if typ=="Sword" then return v.ToolTip=="Sword" or (v.Name:find("Sword") or v.Name:find("Blade") or v.Name:find("Katana") or v.Name:find("Saber")) end
+        if typ=="Gun"   then return v.ToolTip=="Gun"   or (v.Name:find("Gun") or v.Name:find("Pistol") or v.Name:find("Rifle")) end
+        if typ=="Melee" then return v.ToolTip=="Melee" or (v.Name:find("Fist") or v.Name:find("Glove") or v.Name:find("Knuckle")) end
+        return true
     end
-    for _,v in ipairs(LP.Character:GetChildren()) do
-        if v:IsA("Tool") and (v.ToolTip==tip or v.Name:find(tip)) then return v end
-    end
+    for _,v in ipairs(LP.Backpack:GetChildren()) do if match(v) then return v end end
+    for _,v in ipairs(LP.Character:GetChildren()) do if match(v) then return v end end
     return nil
 end
+
+local function getEquippedTool()
+    if not LP.Character then return nil end
+    for _,v in ipairs(LP.Character:GetChildren()) do if v:IsA("Tool") then return v end end
+    return nil
+end
+
+local function equipWeapon(tool)
+    if not tool or not LP.Character then return false end
+    local hum = LP.Character:FindFirstChild("Humanoid"); if not hum then return false end
+    if tool.Parent == LP.Character then return true end -- already equipped
+    hum:EquipTool(tool)
+    return true
+end
+
+local function unequipAll()
+    if not LP.Character then return end
+    local hum = LP.Character:FindFirstChild("Humanoid"); if not hum then return end
+    hum:UnequipTools()
+end
+
+-- SmartEquipFruit kept for backward compat
+local function SmartEquipFruit() return getWeapon("Fruit") end
+
+-- ══════════════════════════════════════════════
+--  SMART COMBO ENGINE
+-- ══════════════════════════════════════════════
+-- State
+local Combo = {
+    Phase       = "idle",   -- idle / ken_break / fruit_dmg / chase / cooldown
+    LastPhase   = tick(),
+    KenBreaks   = 0,        -- consecutive ken breaks done
+    LastSkill   = tick(),
+    Cooldown    = false,
+    SkillQueue  = {},       -- {key, holdTime}
+    PressedKeys = {},
+}
+
+local SKILL_KEYS = {
+    Z = Enum.KeyCode.Z, X = Enum.KeyCode.X,
+    C = Enum.KeyCode.C, V = Enum.KeyCode.V, F = Enum.KeyCode.F,
+}
+
+local function pressKey(keyCode, holdTime)
+    pcall(function()
+        S.V:SendKeyEvent(true, keyCode, false, game)
+        task.delay(holdTime or 0.1, function()
+            pcall(function() S.V:SendKeyEvent(false, keyCode, false, game) end)
+        end)
+    end)
+end
+
+local function clickMouse()
+    pcall(function()
+        S.V:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        task.delay(0.08, function()
+            pcall(function() S.V:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+        end)
+    end)
+end
+
+-- Detect if target is running away (velocity high, moving away from us)
+local function isTargetRunning(tChar)
+    if not tChar then return false end
+    local tHRP = tChar:FindFirstChild("HumanoidRootPart"); if not tHRP then return false end
+    local myHRP = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return false end
+    local vel = tHRP.AssemblyLinearVelocity
+    local speed = vel.Magnitude
+    if speed < 20 then return false end
+    -- Check if moving away from us
+    local toTarget = (tHRP.Position - myHRP.Position).Unit
+    local targetDir = vel.Unit
+    local dot = toTarget:Dot(targetDir)
+    return dot > 0.4 and speed > 20
+end
+
+-- Detect Ken (Observation Haki) - check if target has rapid dodge
+-- We infer Ken by tracking if our hits are being dodged (target teleports slightly on hit)
+local KenTrack = {}
+local function detectKen(tChar)
+    if not tChar then return false end
+    local hrp = tChar:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
+    local name = tChar.Name
+    local now = tick()
+    -- Track velocity spikes (Ken dodge = sudden velocity spike)
+    local speed = hrp.AssemblyLinearVelocity.Magnitude
+    KenTrack[name] = KenTrack[name] or {spikes=0, lastCheck=now, lastSpeed=0}
+    local kt = KenTrack[name]
+    if speed > 50 and kt.lastSpeed < 20 then
+        kt.spikes = kt.spikes + 1
+        kt.lastCheck = now
+    end
+    if now - kt.lastCheck > 3 then kt.spikes = 0; kt.lastCheck = now end
+    kt.lastSpeed = speed
+    return kt.spikes >= 2  -- 2+ dodge spikes = likely has Ken
+end
+
+-- Main combo loop
+t_spawn(function()
+    local lastComboTick = tick()
+    while t_wait(0.08) do
+        pcall(function()
+            local target = getgenv().LockedTarget
+            if not target or not isTargetValid(target) then
+                Combo.Phase = "idle"; return
+            end
+            if getgenv().Retreating then Combo.Phase = "idle"; return end
+
+            local myChar = LP.Character; if not myChar then return end
+            local myHum  = myChar:FindFirstChild("Humanoid"); if not myHum or myHum.Health <= 0 then return end
+            local myHRP  = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+            local tHRP   = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
+            local dist   = (myHRP.Position - tHRP.Position).Magnitude
+            local now    = tick()
+
+            -- PHASE DECISION
+            local running = isTargetRunning(target)
+            local hasKen  = detectKen(target)
+            local tHum    = target:FindFirstChild("Humanoid")
+            local tHP     = tHum and tHum.Health or 0
+            local tMaxHP  = tHum and tHum.MaxHealth or 1
+            local tHPpct  = tHP / math.max(tMaxHP, 1)
+
+            -- Cool combo timing
+            local phaseTime = now - Combo.LastPhase
+
+            if dist > 80 then
+                -- Too far: equip fruit for ranged
+                Combo.Phase = "chase"
+                local fruit = getWeapon("Fruit")
+                if fruit then equipWeapon(fruit) end
+                return
+            end
+
+            if Combo.Phase == "idle" or phaseTime > 4 then
+                -- Start new combo cycle
+                if hasKen then
+                    Combo.Phase = "ken_break"; Combo.LastPhase = now; Combo.KenBreaks = 0
+                elseif running then
+                    Combo.Phase = "chase"; Combo.LastPhase = now
+                else
+                    Combo.Phase = "fruit_dmg"; Combo.LastPhase = now
+                end
+            end
+
+            -- EXECUTE PHASE
+            if Combo.Phase == "ken_break" then
+                -- Ken Break: use Sword Z skill (ken breaker) + rapid clicks
+                if now - Combo.LastSkill < 0.35 then return end
+                Combo.LastSkill = now
+                local sword = getWeapon("Sword")
+                if sword then
+                    equipWeapon(sword)
+                    task.delay(0.12, function()
+                        if Combo.Phase == "ken_break" then
+                            pressKey(SKILL_KEYS.Z, 0.15)  -- Sword Z = ken break
+                            task.delay(0.18, function() clickMouse() end)
+                            task.delay(0.32, function() clickMouse() end)
+                        end
+                    end)
+                    Combo.KenBreaks = Combo.KenBreaks + 1
+                    if Combo.KenBreaks >= 3 then
+                        -- After 3 ken breaks, switch to fruit damage
+                        Combo.Phase = "fruit_dmg"; Combo.LastPhase = now; Combo.KenBreaks = 0
+                    end
+                else
+                    -- No sword: spam clicks to break ken
+                    clickMouse()
+                    task.delay(0.1, function() clickMouse() end)
+                    Combo.Phase = "fruit_dmg"; Combo.LastPhase = now
+                end
+
+            elseif Combo.Phase == "fruit_dmg" then
+                -- Fruit damage combo: Z → X → C in sequence
+                if now - Combo.LastSkill < 0.55 then return end
+                Combo.LastSkill = now
+                local fruit = getWeapon("Fruit")
+                if fruit then
+                    equipWeapon(fruit)
+                    task.delay(0.1, function()
+                        if not isTargetValid(getgenv().LockedTarget) then return end
+                        pressKey(SKILL_KEYS.Z, 0.18)
+                        task.delay(0.5, function()
+                            if not isTargetValid(getgenv().LockedTarget) then return end
+                            pressKey(SKILL_KEYS.X, 0.18)
+                            task.delay(0.5, function()
+                                if not isTargetValid(getgenv().LockedTarget) then return end
+                                pressKey(SKILL_KEYS.C, 0.18)
+                                -- After fruit combo: go back to ken break if needed
+                                task.delay(0.8, function()
+                                    if detectKen(getgenv().LockedTarget) then
+                                        Combo.Phase = "ken_break"; Combo.LastPhase = tick()
+                                    else
+                                        Combo.Phase = "idle"
+                                    end
+                                end)
+                            end)
+                        end)
+                    end)
+                else
+                    -- Fallback: sword + click
+                    local sword = getWeapon("Sword")
+                    if sword then equipWeapon(sword) end
+                    clickMouse()
+                    Combo.Phase = "idle"
+                end
+
+            elseif Combo.Phase == "chase" then
+                -- Target running: equip fruit, use F (transform if any) then Z ranged
+                if now - Combo.LastSkill < 0.7 then return end
+                Combo.LastSkill = now
+                local fruit = getWeapon("Fruit")
+                if fruit then
+                    equipWeapon(fruit)
+                    task.delay(0.12, function()
+                        pressKey(SKILL_KEYS.Z, 0.18)  -- ranged Z skill while chasing
+                        task.delay(0.45, function()
+                            if not running then Combo.Phase = "fruit_dmg"; Combo.LastPhase = tick() end
+                        end)
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- ══════════════════════════════════════════════
+--  AUTO CLICK (Ken Breaker)
+--  Rapid LMB when in close range with target
+-- ══════════════════════════════════════════════
+t_spawn(function()
+    local lastClick = tick()
+    while t_wait(0.04) do
+        pcall(function()
+            local target = getgenv().LockedTarget
+            if not target or not isTargetValid(target) then return end
+            if getgenv().Retreating then return end
+            local myChar = LP.Character; if not myChar then return end
+            local myHRP = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+            local tHRP  = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
+            local dist  = (myHRP.Position - tHRP.Position).Magnitude
+            -- Only auto-click when close enough (melee range)
+            if dist > 18 then return end
+            local now = tick()
+            -- Click rate: 8 clicks/s (natural-looking)
+            if now - lastClick < 0.125 then return end
+            lastClick = now
+            -- Only click if sword/melee equipped (avoid wasting fruit ammo)
+            local equipped = getEquippedTool()
+            if equipped and (equipped.ToolTip=="Sword" or equipped.ToolTip=="Melee"
+            or equipped.Name:find("Sword") or equipped.Name:find("Fist")
+            or equipped.Name:find("Blade") or equipped.Name:find("Katana")) then
+                clickMouse()
+            end
+        end)
+    end
+end)
+
+-- ══════════════════════════════════════════════
+--  SMART RUN SYSTEM
+--  Khi bị săn bounty + HP thấp → chạy thông minh
+-- ══════════════════════════════════════════════
+local RunState = {
+    Active      = false,
+    LastRun     = 0,
+    RunCooldown = 8,     -- seconds between run attempts
+    SafePoints  = {},    -- discovered safe positions
+}
+
+-- Detect if someone nearby is targeting us (they're moving toward us fast)
+local function getHuntersNearby()
+    local myChar = LP.Character; if not myChar then return {} end
+    local myHRP  = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return {} end
+    local hunters = {}
+    for _,plr in pairs(S.P:GetPlayers()) do
+        if plr == LP then continue end
+        local char = plr.Character; if not char then continue end
+        local hrp  = char:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
+        local hum  = char:FindFirstChild("Humanoid"); if not hum or hum.Health <= 0 then continue end
+        local dist = (myHRP.Position - hrp.Position).Magnitude
+        if dist > 200 then continue end
+        -- Check if moving toward us
+        local vel   = hrp.AssemblyLinearVelocity
+        local toMe  = (myHRP.Position - hrp.Position).Unit
+        local dot   = toMe:Dot(vel.Unit)
+        local speed = vel.Magnitude
+        if speed > 15 and dot > 0.5 and dist < 120 then
+            table.insert(hunters, {char=char, dist=dist, speed=speed})
+        end
+    end
+    return hunters
+end
+
+local function doSmartRun()
+    if not LP.Character then return end
+    local myHRP = LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+    local now = tick()
+    if now - RunState.LastRun < RunState.RunCooldown then return end
+    RunState.LastRun = now; RunState.Active = true
+
+    -- Unequip to move faster
+    pcall(function()
+        local hum = LP.Character:FindFirstChild("Humanoid")
+        if hum then hum:UnequipTools() end
+    end)
+
+    -- Try to move away from all hunters
+    local hunters = getHuntersNearby()
+    local escapeDir = Vector3.new(0,0,0)
+    if #hunters > 0 then
+        for _,h in ipairs(hunters) do
+            local hrp = h.char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local away = (myHRP.Position - hrp.Position).Unit
+                escapeDir = escapeDir + away
+            end
+        end
+        escapeDir = escapeDir.Unit
+    else
+        -- Random escape direction
+        local angle = math.random(0, 360)
+        escapeDir = Vector3.new(math.cos(math.rad(angle)), 0, math.sin(math.rad(angle)))
+    end
+
+    -- Teleport in escape direction, multiple hops
+    local pos = myHRP.Position
+    for i = 1, 4 do
+        task.delay(i * 0.15, function()
+            pcall(function()
+                if not LP.Character then return end
+                local hrp = LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+                local hop = i * 55  -- increasing distance per hop
+                local dest = pos + escapeDir * hop + Vector3.new(0, i * 3, 0)
+                hrp.CFrame = CFrame.new(dest, dest + escapeDir)
+                hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            end)
+        end)
+    end
+
+    -- After run, move to high ground briefly
+    task.delay(0.8, function()
+        pcall(function()
+            if not LP.Character then return end
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+            local safePos = hrp.Position + Vector3.new(0, 60, 0) + escapeDir * 80
+            hrp.CFrame = CFrame.new(safePos)
+        end)
+    end)
+
+    task.delay(2, function() RunState.Active = false end)
+end
+
+-- Run monitor loop
+-- RunLabel bound to UI row (defined after UI creation)
+local RunLabel  -- will be bound below after UI
+t_spawn(function()
+    while t_wait(0.25) do
+        pcall(function()
+            local myChar = LP.Character; if not myChar then return end
+            local myHum  = myChar:FindFirstChild("Humanoid"); if not myHum then return end
+            local hp     = myHum.Health
+            local maxHP  = myHum.MaxHealth
+            local hpPct  = hp / math.max(maxHP, 1)
+
+            local hunters = getHuntersNearby()
+            local inDanger = hpPct < 0.28 and #hunters > 0
+
+            -- Critical run: very low HP with hunter nearby
+            if hpPct < 0.15 and #hunters > 0 and not RunState.Active then
+                getgenv().Retreating = true
+                clearTarget()
+                doSmartRun()
+            end
+
+            -- Moderate danger: retreat but don't full run yet
+            if inDanger and not RunState.Active and not getgenv().Retreating then
+                getgenv().Retreating = true
+                clearTarget()
+                task.delay(0.5, function()
+                    if LP.Character then
+                        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            -- Move away
+                            local away = Vector3.new(math.random(-1,1)*60, 20, math.random(-1,1)*60)
+                            hrp.CFrame = CFrame.new(hrp.Position + away)
+                        end
+                    end
+                end)
+            end
+
+            -- Update run label if it exists
+            if RunLabel then
+                if RunState.Active then
+                    RunLabel.Text = "🏃 RUNNING"
+                    RunLabel.TextColor3 = Color3.fromRGB(255,200,50)
+                elseif #hunters > 0 and hpPct < 0.4 then
+                    RunLabel.Text = "⚠ DANGER: "..#hunters.." hunter"
+                    RunLabel.TextColor3 = Color3.fromRGB(255,100,100)
+                elseif #hunters > 0 then
+                    RunLabel.Text = "👁 "..#hunters.." hunter nearby"
+                    RunLabel.TextColor3 = Color3.fromRGB(255,160,50)
+                else
+                    RunLabel.Text = "✅ SAFE"
+                    RunLabel.TextColor3 = Color3.fromRGB(100,220,100)
+                end
+            end
+        end)
+    end
+end)
 
 -- ══════════════════════════════════════════════
 --  RESPAWN
@@ -525,11 +956,15 @@ t_spawn(function()
                 Blacklist[t.Name]=now; clearTarget(); TargetTimer[t.Name]=nil; return
             end
             if getgenv().Retreating then clearTarget(); return end
+            if RunState.Active then return end  -- skip combat while running
             local d=(myHRP.Position-t.HumanoidRootPart.Position).Magnitude
             if d>ENGAGE_RANGE then clearTarget(); return end
             applyHitbox(t)
-            local fruit=SmartEquipFruit()
-            if fruit and fruit.Parent~=myChar then myHum:EquipTool(fruit) end
+            -- Weapon equip handled by combo engine; only equip fruit if no combo active
+            if Combo.Phase=="idle" or Combo.Phase=="chase" then
+                local fruit=SmartEquipFruit()
+                if fruit and fruit.Parent~=myChar then myHum:EquipTool(fruit) end
+            end
         end)
     end
 end)
@@ -780,7 +1215,7 @@ local cTarget,cTargetS = mkCard(CX2,CY2c,rgb(8,28,24), rgb(5,18,16),  C.TEAL,   
 cTarget.TextSize=12; cEarned.TextSize=22; cTime.TextSize=16
 
 -- ── RIGHT PANEL (PLAYER INFO) ──
-local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+8},rgb(14,10,30),0)
+local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+30},rgb(14,10,30),0)
 cr(rPanel,14); stk(rPanel,C.BORDER2,0.55); grad(rPanel,rgb(16,12,34),rgb(10,7,22),140)
 
 -- Header với RESET button
@@ -825,6 +1260,8 @@ local rBPH    = mkRRow(113, "📈","BPH",     C.GOLD)
 local rKills  = mkRRow(134, "☠","Kills/h",  C.VIOLET)
 mkF(rPanel,{0,8},{0,155},{1,-16},{0,1},C.BORDER,0.6)
 local rPing   = mkRRow(160, "📡","Ping",    C.PURPLE)
+mkF(rPanel,{0,8},{0,181},{1,-16},{0,1},C.BORDER,0.6)
+local rRun    = mkRRow(186, "🏃","Status",  C.LIME)
 
 sep(Main,336)
 
@@ -895,6 +1332,8 @@ local function refreshHist()
     Main.Size=UDim2.new(0,580,0,452+histH+28)
 end
 refreshHist()
+-- Bind RunLabel to the rRun row in right panel
+RunLabel = rRun
 
 -- ── FOOTER ──
 local FooterL=mkL(Main,"FPS: --  |  PING: -- ms",10,C.DIM,Enum.Font.Code)
@@ -1064,6 +1503,7 @@ t_spawn(function()
         rKills.Text=string.format("%.1f/h",Kills/sessH)
         local ping=0; pcall(function() ping=m_floor(LP:GetNetworkPing()*1000) end)
         rPing.Text=ping.."ms"
+        -- rRun updated by RunState monitor loop above
 
         -- BPH BAR
         if os.time()-HourStart>=3600 then doHourReset() end
@@ -1097,3 +1537,5 @@ t_spawn(function()
         end
     end
 end)
+
+print("DORA VIP v7 Loaded!")
