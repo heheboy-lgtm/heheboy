@@ -1050,6 +1050,11 @@ t_spawn(function() while t_wait(1) do CurrentFPS=FrameCount; FrameCount=0 end en
 -- ══════════════════════════════════════════════
 --  UI  — Purple-Dark Theme
 -- ══════════════════════════════════════════════
+-- Forward declarations (dùng trong UI trước khi định nghĩa)
+local doHop
+local isHopping    = false
+local autoHopStart = tick()
+
 pcall(function() local o=S.CG:FindFirstChild("DORA_UI"); if o then o:Destroy() end end)
 
 local function rgb(r,g,b) return Color3.fromRGB(r,g,b) end
@@ -1380,8 +1385,7 @@ end)
 --  AUTO HOP
 -- ══════════════════════════════════════════════
 local HOP_INTERVAL = 10 * 60
-local autoHopStart = tick()
-local isHopping    = false
+-- autoHopStart và isHopping đã khai báo forward ở trên
 
 local function hopLog(msg, col)
     pcall(function()
@@ -1395,7 +1399,7 @@ local function hopLog(msg, col)
     end)
 end
 
-local function doHop()
+doHop = function()
     if isHopping then return end
     isHopping = true
     SaveAllState()
