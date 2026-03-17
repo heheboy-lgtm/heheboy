@@ -879,12 +879,32 @@ pcall(function() local o=S.CG:FindFirstChild("DORA_UI"); if o then o:Destroy() e
 local function rgb(r,g,b) return Color3.fromRGB(r,g,b) end
 
 local C={
-    BG=rgb(9,7,20),BG2=rgb(13,10,28),PANEL=rgb(16,12,34),TOP=rgb(7,5,16),
-    BORDER=rgb(55,35,100),BORDER2=rgb(100,60,200),
-    PURPLE=rgb(155,90,255),GOLD=rgb(255,200,60),ROSE=rgb(255,100,140),
-    VIOLET=rgb(180,140,255),TEAL=rgb(60,220,190),LIME=rgb(120,235,80),
-    ORANGE=rgb(255,160,50),SUB=rgb(140,125,195),DIM=rgb(70,55,120),
-    DARK=rgb(12,9,26),WHITE=rgb(255,255,255),
+    -- Nền sáng hơn (~20% so với v8)
+    BG     = rgb(14,11,30),
+    BG2    = rgb(20,16,42),
+    PANEL  = rgb(24,19,52),
+    TOP    = rgb(11,8,24),
+    BORDER = rgb(70,45,130),
+    BORDER2= rgb(130,80,240),
+    -- Accent chính: tím sáng
+    PURPLE = rgb(175,110,255),
+    PURPLE2= rgb(38,22,78),    -- nền button tím
+    -- Gold sáng
+    GOLD   = rgb(255,210,70),
+    GOLD2  = rgb(55,42,10),
+    -- Rose
+    ROSE   = rgb(255,110,150),
+    ROSE2  = rgb(62,14,30),
+    -- Các màu còn lại sáng hơn
+    VIOLET = rgb(200,165,255),
+    TEAL   = rgb(70,235,205),
+    LIME   = rgb(135,245,90),
+    ORANGE = rgb(255,175,65),
+    TEXT   = rgb(240,235,255),
+    SUB    = rgb(165,148,220),
+    DIM    = rgb(95,78,150),
+    DARK   = rgb(16,12,34),
+    WHITE  = rgb(255,255,255),
 }
 
 local function cr(p,r) local c=Instance.new("UICorner",p); c.CornerRadius=UDim.new(0,r or 8) end
@@ -923,11 +943,11 @@ local Main=Instance.new("Frame"); Main.Name="Main"
 Main.Size=UDim2.new(0,580,0,560); Main.Position=UDim2.new(0.5,-290,0.5,-280)
 Main.BackgroundColor3=C.BG; Main.Active=true; Main.Draggable=true; Main.ClipsDescendants=false
 Main.Parent=ScreenGui; Main.BorderSizePixel=0
-cr(Main,18); stk(Main,C.BORDER2,0.2,1.5); grad(Main,rgb(12,9,26),rgb(7,5,16),160)
+cr(Main,18); stk(Main,C.BORDER2,0.12,1.5); grad(Main,rgb(18,14,38),rgb(12,9,26),160)
 
 -- TOP BAR
 local Top=mkF(Main,{0,0},{0,0},{1,0},{0,40},C.TOP,0); cr(Top,18)
-mkF(Top,{0,0},{1,-1},{1,0},{0,1},C.BORDER2,0.4); grad(Top,rgb(12,9,24),rgb(7,5,16),90)
+mkF(Top,{0,0},{1,-1},{1,0},{0,1},C.BORDER2,0.3); grad(Top,rgb(18,14,34),rgb(12,9,22),90)
 mkF(Top,{0,14},{0.5,-5},{0,10},{0,10},C.PURPLE,0); cr(Top:FindFirstChild("Frame"),5)
 local TitleL=mkL(Top,"⚡ DORA VIP",14,C.WHITE,Enum.Font.GothamBold)
 TitleL.Size=UDim2.new(0,120,1,0); TitleL.Position=UDim2.new(0,30,0,0)
@@ -1000,15 +1020,15 @@ local function mkCard(cx,cy,bg1,bg2,ac,icon,title,sub)
     sl.Size=UDim2.new(1,-4,0,14); sl.Position=UDim2.new(0,2,0,76)
     return vl,sl
 end
-local cEarned,cEarnedS=mkCard(CX1,CY1,rgb(18,10,8),rgb(10,6,4),C.GOLD,"💰","BOUNTY EARNED","session total")
-local cTime,cTimeS=mkCard(CX2,CY1,rgb(10,8,28),rgb(6,5,18),C.PURPLE,"⏱","TIME ELAPSED","played time")
-local cKills,cKillsS=mkCard(CX1,CY2c,rgb(20,10,36),rgb(12,6,22),C.VIOLET,"☠","TOTAL KILLS","this session")
-local cTarget,cTargetS=mkCard(CX2,CY2c,rgb(8,28,24),rgb(5,18,16),C.TEAL,"🎯","TARGET","health: --")
+local cEarned,cEarnedS=mkCard(CX1,CY1,rgb(32,18,10),rgb(22,12,6),C.GOLD,"💰","BOUNTY EARNED","session total")
+local cTime,cTimeS=mkCard(CX2,CY1,rgb(20,15,48),rgb(14,10,34),C.PURPLE,"⏱","TIME ELAPSED","played time")
+local cKills,cKillsS=mkCard(CX1,CY2c,rgb(35,18,58),rgb(24,12,40),C.VIOLET,"☠","TOTAL KILLS","this session")
+local cTarget,cTargetS=mkCard(CX2,CY2c,rgb(14,44,38),rgb(9,30,26),C.TEAL,"🎯","TARGET","health: --")
 cTarget.TextSize=12; cEarned.TextSize=22; cTime.TextSize=16
 
 -- RIGHT PANEL
-local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+6},rgb(14,10,30),0)
-cr(rPanel,14); stk(rPanel,C.BORDER2,0.55); grad(rPanel,rgb(16,12,34),rgb(10,7,22),140)
+local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+6},rgb(22,16,46),0)
+cr(rPanel,14); stk(rPanel,C.BORDER2,0.35); grad(rPanel,rgb(26,19,54),rgb(18,13,38),140)
 local rHL=mkL(rPanel,"📋  PLAYER INFO",9,C.DIM,Enum.Font.GothamBold)
 rHL.Size=UDim2.new(1,-52,0,16); rHL.Position=UDim2.new(0,10,0,6)
 local ResetBtn=Instance.new("TextButton",rPanel)
@@ -1044,8 +1064,8 @@ local rRun=mkRRow(143,"🏃","Status",C.LIME)
 sep(Main,336)
 
 -- ── COMPACT BPH + HOP ROW y=342 ──
-local BphRow=mkF(Main,{0,14},{0,342},{1,-28},{0,30},C.DARK,0)
-cr(BphRow,10); stk(BphRow,C.BORDER,0.7); grad(BphRow,rgb(11,15,30),rgb(7,9,20),90)
+local BphRow=mkF(Main,{0,14},{0,342},{1,-28},{0,30},C.PANEL,0)
+cr(BphRow,10); stk(BphRow,C.BORDER2,0.5); grad(BphRow,rgb(20,15,42),rgb(14,10,30),90)
 local BphLbl=mkL(BphRow,"📈  BPH: 0/h",11,C.GOLD,Enum.Font.GothamBold)
 BphLbl.Size=UDim2.new(0,140,1,0); BphLbl.Position=UDim2.new(0,10,0,0)
 local BphRst=mkL(BphRow,"60m 00s",9,C.SUB)
@@ -1080,7 +1100,7 @@ HistEmpty.Size=UDim2.new(1,-28,0,16); HistEmpty.Position=UDim2.new(0,14,0,410)
 local histRows={}
 for i=1,5 do
     local yy=410+(i-1)*26
-    local row=mkF(Main,{0,14},{0,yy},{1,-28},{0,22},C.PANEL,0.05)
+    local row=mkF(Main,{0,14},{0,yy},{1,-28},{0,22},C.PANEL,0)
     cr(row,6); stk(row,C.BORDER,0.7); row.Visible=false
     local rp=Instance.new("UIPadding",row)
     rp.PaddingLeft=UDim.new(0,10); rp.PaddingRight=UDim.new(0,10)
@@ -1131,7 +1151,7 @@ mkF(Main,{0,14},{1,-28},{1,-28},{0,1},C.BORDER,0.6)
 local Mini=Instance.new("Frame",ScreenGui)
 Mini.Size=UDim2.new(0,200,0,34); Mini.Position=UDim2.new(0.5,-100,0,8)
 Mini.BackgroundColor3=C.BG2; Mini.Active=true; Mini.Draggable=true; Mini.Visible=false
-Mini.BorderSizePixel=0; cr(Mini,17); stk(Mini,C.BORDER2,0.3); grad(Mini,rgb(14,10,28),rgb(8,6,18),90)
+Mini.BorderSizePixel=0; cr(Mini,17); stk(Mini,C.BORDER2,0.3); grad(Mini,rgb(22,16,42),rgb(15,11,30),90)
 local _md=mkF(Mini,{0,11},{0.5,-5},{0,10},{0,10},C.PURPLE,0); cr(_md,5)
 local MName=mkL(Mini,"⚡ DORA VIP",12,C.WHITE,Enum.Font.GothamBold)
 MName.Size=UDim2.new(0,100,1,0); MName.Position=UDim2.new(0,27,0,0)
