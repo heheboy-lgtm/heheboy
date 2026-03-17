@@ -1,11 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---  DORA VIP  v7
---  + Loading screen đẹp
---  + Nút Reset gọn trong panel
---  + Icon đầy đủ
---  + Màu UI mới (Purple-Dark theme)
---  - Bỏ Sea detection
---  - Bỏ giờ VN
+--  DORA VIP  v8  —  BananaCat integrated
+--  Fix: loading async, duplicate Combo, RunState order
 -- ══════════════════════════════════════════════════════════
 
 -- ── ANTI-KICK ──
@@ -21,9 +16,10 @@ end)
 if not game:IsLoaded() then game.Loaded:Wait() end
 local P_Serv = game:GetService("Players")
 local LP = P_Serv.LocalPlayer or P_Serv:GetPropertyChangedSignal("LocalPlayer"):Wait()
+repeat task.wait() until LP and LP.Character and LP:FindFirstChild("PlayerGui")
 
 -- ══════════════════════════════════════════════
---  LOADING SCREEN
+--  LOADING SCREEN  (async — không block thread)
 -- ══════════════════════════════════════════════
 local TweenService = game:GetService("TweenService")
 local SafeGui
@@ -31,7 +27,7 @@ pcall(function() if type(gethui)=="function" then SafeGui=gethui() end end)
 if not SafeGui then pcall(function() SafeGui=game:GetService("CoreGui") end) end
 if not SafeGui then SafeGui=LP:WaitForChild("PlayerGui") end
 
-do
+task.spawn(function()
     local LG = Instance.new("ScreenGui")
     LG.Name="DoraLoad"; LG.ResetOnSpawn=false; LG.Parent=SafeGui
 
@@ -39,22 +35,14 @@ do
     LF.Size=UDim2.new(0,310,0,158); LF.Position=UDim2.new(0.5,-155,0.5,-79)
     LF.BackgroundColor3=Color3.fromRGB(10,8,20); LF.BorderSizePixel=0
     Instance.new("UICorner",LF).CornerRadius=UDim.new(0,14)
-    local _st=Instance.new("UIStroke",LF); _st.Thickness=1.5
-    _st.Color=Color3.fromRGB(140,80,255)
-
-    -- Gradient bg
+    local _st=Instance.new("UIStroke",LF); _st.Thickness=1.5; _st.Color=Color3.fromRGB(140,80,255)
     local _gr=Instance.new("UIGradient",LF)
-    _gr.Color=ColorSequence.new(Color3.fromRGB(14,10,28),Color3.fromRGB(8,6,18))
-    _gr.Rotation=135
-
-    -- Accent top stripe
-    local _stripe=Instance.new("Frame",LF)
-    _stripe.Size=UDim2.new(1,0,0,3); _stripe.BorderSizePixel=0
+    _gr.Color=ColorSequence.new(Color3.fromRGB(14,10,28),Color3.fromRGB(8,6,18)); _gr.Rotation=135
+    local _stripe=Instance.new("Frame",LF); _stripe.Size=UDim2.new(1,0,0,3); _stripe.BorderSizePixel=0
     _stripe.BackgroundColor3=Color3.fromRGB(140,80,255)
     Instance.new("UICorner",_stripe).CornerRadius=UDim.new(0,14)
     local _sg=Instance.new("UIGradient",_stripe)
-    _sg.Color=ColorSequence.new(Color3.fromRGB(140,80,255),Color3.fromRGB(80,180,255))
-    _sg.Rotation=0
+    _sg.Color=ColorSequence.new(Color3.fromRGB(140,80,255),Color3.fromRGB(80,180,255)); _sg.Rotation=0
 
     local function mkTxt(parent,txt,size,col,font,y)
         local l=Instance.new("TextLabel",parent)
@@ -66,67 +54,57 @@ do
 
     mkTxt(LF,"👋  Xin chào, "..LP.Name.."!",13,Color3.fromRGB(255,196,50),Enum.Font.GothamBold,14)
     mkTxt(LF,"⚡  DORA VIP",18,Color3.fromRGB(190,130,255),Enum.Font.GothamBold,36)
-    mkTxt(LF,"🛡  Đang khởi động hệ thống...",12,Color3.fromRGB(100,90,140),Enum.Font.Gotham,62)
+    local STL=mkTxt(LF,"Đang tải...",12,Color3.fromRGB(100,90,140),Enum.Font.Gotham,62)
 
     local PBG=Instance.new("Frame",LF)
     PBG.Size=UDim2.new(1,-24,0,8); PBG.Position=UDim2.new(0,12,0,96)
     PBG.BackgroundColor3=Color3.fromRGB(25,18,45); PBG.BorderSizePixel=0
     Instance.new("UICorner",PBG).CornerRadius=UDim.new(0,4)
-
     local PBar=Instance.new("Frame",PBG)
     PBar.Size=UDim2.new(0,0,1,0); PBar.BackgroundColor3=Color3.fromRGB(140,80,255)
     PBar.BorderSizePixel=0; Instance.new("UICorner",PBar).CornerRadius=UDim.new(0,4)
     local _pg=Instance.new("UIGradient",PBar)
-    _pg.Color=ColorSequence.new(Color3.fromRGB(140,80,255),Color3.fromRGB(80,180,255))
-    _pg.Rotation=0
+    _pg.Color=ColorSequence.new(Color3.fromRGB(140,80,255),Color3.fromRGB(80,180,255)); _pg.Rotation=0
 
-    local STL=mkTxt(LF,"Đang tải...",11,Color3.fromRGB(100,90,140),Enum.Font.Gotham,114)
-
-    -- Animate
     local steps={"⚙  Khởi tạo hệ thống...","🎯  Tải target system...","🛡  Kích hoạt bảo vệ...","✅  Sẵn sàng!"}
     for i,s in ipairs(steps) do
-        local tw=TweenService:Create(PBar,TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),
-            {Size=UDim2.new(i/#steps,0,1,0)})
-        tw:Play(); tw.Completed:Wait()
+        TweenService:Create(PBar,TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),
+            {Size=UDim2.new(i/#steps,0,1,0)}):Play()
+        task.wait(0.25)
         STL.Text=s
         if i==#steps then STL.TextColor3=Color3.fromRGB(130,230,80) end
-        task.wait(0.08)
     end
-    task.wait(0.25)
+    task.wait(0.4)
     TweenService:Create(LF,TweenInfo.new(0.3,Enum.EasingStyle.Quart,Enum.EasingDirection.In),
         {BackgroundTransparency=1,Position=UDim2.new(0.5,-155,0.4,-79)}):Play()
-    task.wait(0.32); LG:Destroy()
-end
+    task.wait(0.35); LG:Destroy()
+end)
 
--- Welcome popup
+-- Welcome popup — bottom right
 task.spawn(function()
+    task.wait(0.5)
     local PG=Instance.new("ScreenGui")
     PG.Name="DoraWelcome"; PG.ResetOnSpawn=false; PG.Parent=SafeGui
-    -- Bottom-right popup
     local Pop=Instance.new("Frame",PG)
-    Pop.Size=UDim2.new(0,260,0,60); Pop.Position=UDim2.new(1,-10,1,10)
+    Pop.Size=UDim2.new(0,260,0,60); Pop.Position=UDim2.new(1,10,1,-14)
     Pop.AnchorPoint=Vector2.new(1,1)
     Pop.BackgroundColor3=Color3.fromRGB(10,8,20); Pop.BackgroundTransparency=1
     Pop.BorderSizePixel=0
     Instance.new("UICorner",Pop).CornerRadius=UDim.new(0,12)
-    local _ps=Instance.new("UIStroke",Pop); _ps.Thickness=1.5
-    _ps.Color=Color3.fromRGB(140,80,255)
-    -- Left purple accent bar
+    local _ps=Instance.new("UIStroke",Pop); _ps.Thickness=1.5; _ps.Color=Color3.fromRGB(140,80,255)
     local _ab=Instance.new("Frame",Pop); _ab.Size=UDim2.new(0,3,1,-8)
     _ab.Position=UDim2.new(0,6,0,4); _ab.BackgroundColor3=Color3.fromRGB(140,80,255)
     _ab.BorderSizePixel=0; Instance.new("UICorner",_ab).CornerRadius=UDim.new(0,2)
     local T1=Instance.new("TextLabel",Pop)
     T1.Size=UDim2.new(1,-18,0,26); T1.Position=UDim2.new(0,14,0,4)
-    T1.BackgroundTransparency=1
-    T1.Text="⚡  DORA VIP da san sang!"; T1.TextColor3=Color3.fromRGB(190,130,255)
-    T1.Font=Enum.Font.GothamBold; T1.TextSize=13; T1.TextTransparency=1
-    T1.TextXAlignment=Enum.TextXAlignment.Left
+    T1.BackgroundTransparency=1; T1.Text="⚡  DORA VIP da san sang!"
+    T1.TextColor3=Color3.fromRGB(190,130,255); T1.Font=Enum.Font.GothamBold
+    T1.TextSize=13; T1.TextTransparency=1; T1.TextXAlignment=Enum.TextXAlignment.Left
     local T2=Instance.new("TextLabel",Pop)
     T2.Size=UDim2.new(1,-18,0,22); T2.Position=UDim2.new(0,14,0,32)
     T2.BackgroundTransparency=1; T2.Text="👋  Chao mung, "..LP.Name.."!"
     T2.TextColor3=Color3.fromRGB(255,196,50); T2.Font=Enum.Font.GothamBold
     T2.TextSize=11; T2.TextTransparency=1; T2.TextXAlignment=Enum.TextXAlignment.Left
-    -- Slide in from right
     TweenService:Create(Pop,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
         {Position=UDim2.new(1,-14,1,-14),BackgroundTransparency=0}):Play()
     TweenService:Create(T1,TweenInfo.new(0.4),{TextTransparency=0}):Play()
@@ -138,8 +116,6 @@ task.spawn(function()
     TweenService:Create(T2,TweenInfo.new(0.3),{TextTransparency=1}):Play()
     task.wait(0.35); PG:Destroy()
 end)
-
-repeat task.wait() until LP and LP.Character and LP:FindFirstChild("PlayerGui")
 
 -- ══════════════════════════════════════════════
 --  SERVICES
@@ -439,14 +415,12 @@ end
 --  WEAPON HELPERS
 -- ══════════════════════════════════════════════
 local function getWeapon(typ)
-    -- typ: "Fruit","Sword","Gun","Melee" or nil (any)
     if not LP.Character then return nil end
     local function match(v)
         if not v:IsA("Tool") then return false end
         if typ=="Fruit" then return v.ToolTip=="Blox Fruit" or v.Name:find("Blox Fruit") end
-        if typ=="Sword" then return v.ToolTip=="Sword" or (v.Name:find("Sword") or v.Name:find("Blade") or v.Name:find("Katana") or v.Name:find("Saber")) end
-        if typ=="Gun"   then return v.ToolTip=="Gun"   or (v.Name:find("Gun") or v.Name:find("Pistol") or v.Name:find("Rifle")) end
-        if typ=="Melee" then return v.ToolTip=="Melee" or (v.Name:find("Fist") or v.Name:find("Glove") or v.Name:find("Knuckle")) end
+        if typ=="Sword" then return v.ToolTip=="Sword" or v.Name:find("Sword") or v.Name:find("Blade")
+            or v.Name:find("Katana") or v.Name:find("Saber") or v.Name:find("Cursed") end
         return true
     end
     for _,v in ipairs(LP.Backpack:GetChildren()) do if match(v) then return v end end
@@ -460,188 +434,169 @@ local function getEquippedTool()
     return nil
 end
 
-local function equipWeapon(tool)
-    if not tool or not LP.Character then return false end
-    local hum = LP.Character:FindFirstChild("Humanoid"); if not hum then return false end
-    if tool.Parent == LP.Character then return true end -- already equipped
-    hum:EquipTool(tool)
-    return true
-end
-
-local function unequipAll()
-    if not LP.Character then return end
-    local hum = LP.Character:FindFirstChild("Humanoid"); if not hum then return end
-    hum:UnequipTools()
-end
-
--- SmartEquipFruit kept for backward compat
-local function SmartEquipFruit() return getWeapon("Fruit") end
-
 -- ══════════════════════════════════════════════
---  COMBO ENGINE  — tích hợp với BananaCat Setting
---  BananaCat đọc getgenv().Setting["Weapons"] để nhấn skill
---  DORA chỉ toggle Enable ON/OFF đúng lúc, không tự nhấn key
+--  SMART RUN  (định nghĩa trước Combo vì Combo dùng nó)
 -- ══════════════════════════════════════════════
-local Combo = {
-    Phase     = "idle",   -- idle / ken_break / fruit_dmg / chase
-    LastPhase = tick(),
-    KenBreaks = 0,
-    LastSwitch = tick(),
+local RunState = {
+    Active      = false,
+    LastRun     = 0,
+    RunCooldown = 8,
 }
+
+local function getHuntersNearby()
+    local myChar=LP.Character; if not myChar then return {} end
+    local myHRP=myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return {} end
+    local hunters={}
+    for _,plr in pairs(S.P:GetPlayers()) do
+        if plr==LP then continue end
+        local char=plr.Character; if not char then continue end
+        local hrp=char:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
+        local hum=char:FindFirstChild("Humanoid"); if not hum or hum.Health<=0 then continue end
+        local dist=(myHRP.Position-hrp.Position).Magnitude
+        if dist>200 then continue end
+        local vel=hrp.AssemblyLinearVelocity
+        local dot=(myHRP.Position-hrp.Position).Unit:Dot(vel.Unit)
+        if vel.Magnitude>15 and dot>0.5 and dist<120 then
+            table.insert(hunters,{char=char,dist=dist})
+        end
+    end
+    return hunters
+end
+
+local function doSmartRun()
+    if not LP.Character then return end
+    local myHRP=LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+    local now=tick()
+    if now-RunState.LastRun<RunState.RunCooldown then return end
+    RunState.LastRun=now; RunState.Active=true
+    pcall(function()
+        local hum=LP.Character:FindFirstChild("Humanoid")
+        if hum then hum:UnequipTools() end
+    end)
+    local hunters=getHuntersNearby()
+    local escapeDir=Vector3.new(0,0,0)
+    if #hunters>0 then
+        for _,h in ipairs(hunters) do
+            local hrp=h.char:FindFirstChild("HumanoidRootPart")
+            if hrp then escapeDir=escapeDir+(myHRP.Position-hrp.Position).Unit end
+        end
+        if escapeDir.Magnitude>0 then escapeDir=escapeDir.Unit
+        else escapeDir=Vector3.new(1,0,0) end
+    else
+        local a=math.random(0,360)
+        escapeDir=Vector3.new(math.cos(math.rad(a)),0,math.sin(math.rad(a)))
+    end
+    local pos=myHRP.Position
+    for i=1,4 do
+        task.delay(i*0.15,function()
+            pcall(function()
+                if not LP.Character then return end
+                local hrp=LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+                local dest=pos+escapeDir*(i*55)+Vector3.new(0,i*3,0)
+                hrp.CFrame=CFrame.new(dest,dest+escapeDir)
+                hrp.AssemblyLinearVelocity=Vector3.new(0,0,0)
+            end)
+        end)
+    end
+    task.delay(0.8,function()
+        pcall(function()
+            if not LP.Character then return end
+            local hrp=LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+            hrp.CFrame=CFrame.new(hrp.Position+Vector3.new(0,60,0)+escapeDir*80)
+        end)
+    end)
+    task.delay(2,function() RunState.Active=false end)
+end
 
 -- ══════════════════════════════════════════════
 --  COMBO ENGINE
---  - Fruit là chính (BananaCat xử lý Z/X/C)
---  - Sword: DORA tự equip + tự pressKey Z (không phụ BananaCat)
---    vì BananaCat Sword Number=0 không nhấn được
+--  Fruit chính (BananaCat xử lý Z/X/C)
+--  Sword: DORA tự equip + pressKey Z
 -- ══════════════════════════════════════════════
-
--- pressKey dùng VirtualInputManager
-local function pressKey(keyCode, holdTime)
+local function pressKey(kc,ht)
     pcall(function()
-        S.V:SendKeyEvent(true, keyCode, false, game)
-        task.delay(holdTime or 0.12, function()
-            pcall(function() S.V:SendKeyEvent(false, keyCode, false, game) end)
+        S.V:SendKeyEvent(true,kc,false,game)
+        task.delay(ht or 0.12,function()
+            pcall(function() S.V:SendKeyEvent(false,kc,false,game) end)
         end)
     end)
 end
 
--- Click vào vị trí target trên màn hình
--- Cần move chuột vào HRP target trước rồi mới click
 local function clickOnTarget(tChar)
     pcall(function()
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-
-        -- Lấy vị trí HRP của target (hoặc dùng vị trí mình nhắm)
-        local aimPos
+        local cam=workspace.CurrentCamera; if not cam then return end
         if tChar then
-            local hrp = tChar:FindFirstChild("HumanoidRootPart")
+            local hrp=tChar:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- WorldToScreenPoint trả về (screenPos, isVisible)
-                local screenPos, isVis = cam:WorldToScreenPoint(hrp.Position)
-                if isVis then
-                    aimPos = screenPos
-                end
+                local sp,isVis=cam:WorldToScreenPoint(hrp.Position)
+                if isVis then S.V:SendMouseMoveEvent(sp.X,sp.Y,game) end
             end
         end
-
-        if aimPos then
-            -- Move chuột đến vị trí target
-            S.V:SendMouseMoveEvent(aimPos.X, aimPos.Y, game)
-        end
-
-        -- Click (với tọa độ chuột hiện tại sau khi move)
-        local mx, my = 0, 0
-        pcall(function()
-            local mp = S.UIS:GetMouseLocation()
-            mx = mp.X; my = mp.Y
-        end)
-        S.V:SendMouseButtonEvent(mx, my, 0, true, game, 1)
-        task.delay(0.08, function()
+        local mp=S.UIS:GetMouseLocation()
+        S.V:SendMouseButtonEvent(mp.X,mp.Y,0,true,game,1)
+        task.delay(0.08,function()
             pcall(function()
-                local mp2 = S.UIS:GetMouseLocation()
-                S.V:SendMouseButtonEvent(mp2.X, mp2.Y, 0, false, game, 1)
+                local mp2=S.UIS:GetMouseLocation()
+                S.V:SendMouseButtonEvent(mp2.X,mp2.Y,0,false,game,1)
             end)
         end)
     end)
 end
 
--- Alias đơn giản khi không cần nhắm
-local function clickMouse()
-    local t = getgenv().LockedTarget
-    clickOnTarget(t)
-end
-
--- Bật/tắt fruit trong BananaCat Setting
 local function setFruitMode(enable)
     pcall(function()
-        local W = getgenv().Setting and getgenv().Setting["Weapons"]
-        if not W then return end
-        W["Blox Fruit"]["Enable"] = enable
-        getgenv().Setting["Method Click"]["Click Fruit"] = enable
+        local W=getgenv().Setting and getgenv().Setting["Weapons"]; if not W then return end
+        if W["Blox Fruit"] then W["Blox Fruit"]["Enable"]=enable end
+        if getgenv().Setting["Method Click"] then
+            getgenv().Setting["Method Click"]["Click Fruit"]=enable
+        end
     end)
 end
 
--- Detect target chạy ra xa
-local function isTargetRunning(tChar)
-    if not tChar then return false end
-    local tHRP = tChar:FindFirstChild("HumanoidRootPart"); if not tHRP then return false end
-    local myHRP = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return false end
-    local vel = tHRP.AssemblyLinearVelocity
-    if vel.Magnitude < 22 then return false end
-    return (tHRP.Position - myHRP.Position).Unit:Dot(vel.Unit) > 0.45
-end
-
--- Detect Ken: đếm số lần velocity đổi hướng đột ngột
--- Threshold thấp hơn nhiều (2 lần) để nhạy hơn
-local KenTrack = {}
+local KenTrack={}
 local function detectKen(tChar)
     if not tChar then return false end
-    local hrp = tChar:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
-    local name = tChar.Name
-    local now  = tick()
-    KenTrack[name] = KenTrack[name] or {dodges=0, lastDodge=0, lastVelDir=Vector3.new(0,0,1)}
-    local kt  = KenTrack[name]
-    local vel = hrp.AssemblyLinearVelocity
-    local spd = vel.Magnitude
-    -- Dodge = speed > 25 VÀ hướng đổi > 100 độ (dot < -0.18) trong < 0.4s
-    local velDot = (spd > 5 and kt.lastVelDir.Magnitude > 0)
-        and vel.Unit:Dot(kt.lastVelDir) or 1
-    if spd > 25 and velDot < -0.18 and (now - kt.lastDodge) > 0.25 then
-        kt.dodges    = kt.dodges + 1
-        kt.lastDodge = now
+    local hrp=tChar:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
+    local name=tChar.Name; local now=tick()
+    KenTrack[name]=KenTrack[name] or {dodges=0,lastDodge=0,lastVelDir=Vector3.new(0,0,1)}
+    local kt=KenTrack[name]
+    local vel=hrp.AssemblyLinearVelocity; local spd=vel.Magnitude
+    local velDot=(spd>5 and kt.lastVelDir.Magnitude>0) and vel.Unit:Dot(kt.lastVelDir) or 1
+    if spd>25 and velDot<-0.18 and (now-kt.lastDodge)>0.25 then
+        kt.dodges=kt.dodges+1; kt.lastDodge=now
     end
-    if now - kt.lastDodge > 4 then kt.dodges = 0 end
-    if spd > 5 then kt.lastVelDir = vel.Unit end
-    return kt.dodges >= 2  -- 2 dodge là đủ kết luận Ken
+    if now-kt.lastDodge>4 then kt.dodges=0 end
+    if spd>5 then kt.lastVelDir=vel.Unit end
+    return kt.dodges>=2
 end
 
--- State combo
-local Combo = {
-    Phase      = "idle",
-    LastSwitch = 0,
-    KenBreaks  = 0,
-    IsBusy     = false,  -- đang thực hiện sword sequence
-}
+-- Combo state (CHỈ 1 khai báo)
+local Combo={Phase="idle",LastSwitch=0,KenBreaks=0,IsBusy=false}
 
--- Thực hiện sword ken-break sequence
--- DORA tự equip sword → nhấn Z → click → equip fruit lại
 local function doKenBreak()
     if Combo.IsBusy then return end
-    Combo.IsBusy = true
-    setFruitMode(false)  -- tắt fruit để BananaCat không cản
-
-    local sword = getWeapon("Sword")
+    Combo.IsBusy=true
+    setFruitMode(false)
+    local sword=getWeapon("Sword")
     if sword then
-        -- Equip sword
         pcall(function()
             if LP.Character and LP.Character:FindFirstChild("Humanoid") then
                 LP.Character.Humanoid:EquipTool(sword)
             end
         end)
-        task.wait(0.2)  -- đợi equip xong
-
-        -- Nhấn Z (skill phá ken)
-        pressKey(Enum.KeyCode.Z, 0.15)
+        task.wait(0.2)
+        pressKey(Enum.KeyCode.Z,0.15)
         task.wait(0.3)
-
-        -- Click thêm 2 lần vào target
-        local tgt = getgenv().LockedTarget
-        clickOnTarget(tgt)
-        task.wait(0.12)
-        clickOnTarget(tgt)
+        local tgt=getgenv().LockedTarget
+        clickOnTarget(tgt); task.wait(0.12); clickOnTarget(tgt)
         task.wait(0.25)
     else
-        -- Không có sword: spam click vào target
-        local tgt = getgenv().LockedTarget
+        local tgt=getgenv().LockedTarget
         clickOnTarget(tgt); task.wait(0.1); clickOnTarget(tgt)
         task.wait(0.3)
     end
-
-    -- Về fruit
     setFruitMode(true)
-    local fruit = getWeapon("Fruit")
+    local fruit=getWeapon("Fruit")
     if fruit then
         pcall(function()
             if LP.Character and LP.Character:FindFirstChild("Humanoid") then
@@ -649,73 +604,51 @@ local function doKenBreak()
             end
         end)
     end
-
-    task.wait(0.3)
-    Combo.IsBusy = false
+    task.wait(0.3); Combo.IsBusy=false
 end
 
--- Combo controller loop
 t_spawn(function()
-    setFruitMode(true)  -- khởi động: fruit bật
+    setFruitMode(true)
     while t_wait(0.08) do
         pcall(function()
-            local target = getgenv().LockedTarget
-            -- Không có target → đảm bảo fruit bật, reset state
-            if not target or not isTargetValid(target)
-            or getgenv().Retreating or RunState.Active then
-                if Combo.Phase ~= "idle" then
-                    Combo.Phase = "idle"; Combo.KenBreaks = 0
+            local target=getgenv().LockedTarget
+            if not target or not isTargetValid(target) or getgenv().Retreating or RunState.Active then
+                if Combo.Phase~="idle" then
+                    Combo.Phase="idle"; Combo.KenBreaks=0
                     if not Combo.IsBusy then setFruitMode(true) end
-                end
-                return
+                end; return
             end
-
-            if Combo.IsBusy then return end  -- đang thực hiện sword sequence
-
-            local myChar = LP.Character; if not myChar then return end
-            local myHRP  = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
-            local tHRP   = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
-            local dist   = (myHRP.Position - tHRP.Position).Magnitude
-            local now    = tick()
-            local hasKen = detectKen(target)
-
-            -- Ken detected + đủ gần → thực hiện ken break sequence
-            -- Cooldown 2s giữa các lần phá ken
-            if hasKen and dist < 55 and (now - Combo.LastSwitch) > 2.0 then
-                Combo.LastSwitch = now
-                Combo.KenBreaks  = Combo.KenBreaks + 1
-                Combo.Phase      = "ken_break"
-                -- Chạy trong thread riêng để không block loop
-                t_spawn(doKenBreak)
+            if Combo.IsBusy then return end
+            local myChar=LP.Character; if not myChar then return end
+            local myHRP=myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+            local tHRP=target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
+            local dist=(myHRP.Position-tHRP.Position).Magnitude
+            local now=tick()
+            local hasKen=detectKen(target)
+            if hasKen and dist<55 and (now-Combo.LastSwitch)>2.0 then
+                Combo.LastSwitch=now; Combo.KenBreaks=Combo.KenBreaks+1
+                Combo.Phase="ken_break"; t_spawn(doKenBreak)
             else
-                Combo.Phase = "fruit_dmg"
-                -- Fruit đang được BananaCat xử lý bình thường
+                Combo.Phase="fruit_dmg"
             end
         end)
     end
 end)
 
--- ══════════════════════════════════════════════
---  AUTO CLICK nhanh khi cầm sword ở melee range
--- ══════════════════════════════════════════════
+-- Auto click sword ở melee range
 t_spawn(function()
-    local lastClick = tick()
+    local lastClick=tick()
     while t_wait(0.05) do
         pcall(function()
-            -- Click khi có target trong melee range (cả ken_break lẫn fruit_dmg)
-            -- Fruit Click được BananaCat xử lý, đây chỉ bổ sung khi sword
-            if Combo.Phase == "idle" then return end
-            local target = getgenv().LockedTarget
-            if not target or not isTargetValid(target) then return end
-            if getgenv().Retreating then return end
-            local myChar = LP.Character; if not myChar then return end
-            local myHRP = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
-            local tHRP  = target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
-            if (myHRP.Position - tHRP.Position).Magnitude > 20 then return end
-            local now = tick()
-            if now - lastClick < 0.13 then return end
-            lastClick = now
-            local eq = getEquippedTool()
+            if Combo.Phase~="ken_break" then return end
+            local target=getgenv().LockedTarget
+            if not target or not isTargetValid(target) or getgenv().Retreating then return end
+            local myChar=LP.Character; if not myChar then return end
+            local myHRP=myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+            local tHRP=target:FindFirstChild("HumanoidRootPart"); if not tHRP then return end
+            if (myHRP.Position-tHRP.Position).Magnitude>20 then return end
+            local now=tick(); if now-lastClick<0.13 then return end; lastClick=now
+            local eq=getEquippedTool()
             if eq and (eq.ToolTip=="Sword" or eq.Name:find("Katana") or eq.Name:find("Sword")
             or eq.Name:find("Blade") or eq.Name:find("Saber") or eq.Name:find("Cursed")) then
                 clickOnTarget(target)
@@ -724,152 +657,39 @@ t_spawn(function()
     end
 end)
 
--- ══════════════════════════════════════════════
---  SMART RUN SYSTEM
---  Khi bị săn bounty + HP thấp → chạy thông minh
--- ══════════════════════════════════════════════
-local RunState = {
-    Active      = false,
-    LastRun     = 0,
-    RunCooldown = 8,     -- seconds between run attempts
-    SafePoints  = {},    -- discovered safe positions
-}
-
--- Detect if someone nearby is targeting us (they're moving toward us fast)
-local function getHuntersNearby()
-    local myChar = LP.Character; if not myChar then return {} end
-    local myHRP  = myChar:FindFirstChild("HumanoidRootPart"); if not myHRP then return {} end
-    local hunters = {}
-    for _,plr in pairs(S.P:GetPlayers()) do
-        if plr == LP then continue end
-        local char = plr.Character; if not char then continue end
-        local hrp  = char:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-        local hum  = char:FindFirstChild("Humanoid"); if not hum or hum.Health <= 0 then continue end
-        local dist = (myHRP.Position - hrp.Position).Magnitude
-        if dist > 200 then continue end
-        -- Check if moving toward us
-        local vel   = hrp.AssemblyLinearVelocity
-        local toMe  = (myHRP.Position - hrp.Position).Unit
-        local dot   = toMe:Dot(vel.Unit)
-        local speed = vel.Magnitude
-        if speed > 15 and dot > 0.5 and dist < 120 then
-            table.insert(hunters, {char=char, dist=dist, speed=speed})
-        end
-    end
-    return hunters
-end
-
-local function doSmartRun()
-    if not LP.Character then return end
-    local myHRP = LP.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
-    local now = tick()
-    if now - RunState.LastRun < RunState.RunCooldown then return end
-    RunState.LastRun = now; RunState.Active = true
-
-    -- Unequip to move faster
-    pcall(function()
-        local hum = LP.Character:FindFirstChild("Humanoid")
-        if hum then hum:UnequipTools() end
-    end)
-
-    -- Try to move away from all hunters
-    local hunters = getHuntersNearby()
-    local escapeDir = Vector3.new(0,0,0)
-    if #hunters > 0 then
-        for _,h in ipairs(hunters) do
-            local hrp = h.char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local away = (myHRP.Position - hrp.Position).Unit
-                escapeDir = escapeDir + away
-            end
-        end
-        escapeDir = escapeDir.Unit
-    else
-        -- Random escape direction
-        local angle = math.random(0, 360)
-        escapeDir = Vector3.new(math.cos(math.rad(angle)), 0, math.sin(math.rad(angle)))
-    end
-
-    -- Teleport in escape direction, multiple hops
-    local pos = myHRP.Position
-    for i = 1, 4 do
-        task.delay(i * 0.15, function()
-            pcall(function()
-                if not LP.Character then return end
-                local hrp = LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-                local hop = i * 55  -- increasing distance per hop
-                local dest = pos + escapeDir * hop + Vector3.new(0, i * 3, 0)
-                hrp.CFrame = CFrame.new(dest, dest + escapeDir)
-                hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-            end)
-        end)
-    end
-
-    -- After run, move to high ground briefly
-    task.delay(0.8, function()
-        pcall(function()
-            if not LP.Character then return end
-            local hrp = LP.Character:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-            local safePos = hrp.Position + Vector3.new(0, 60, 0) + escapeDir * 80
-            hrp.CFrame = CFrame.new(safePos)
-        end)
-    end)
-
-    task.delay(2, function() RunState.Active = false end)
-end
-
--- Run monitor loop
--- RunLabel bound to UI row (defined after UI creation)
-local RunLabel  -- will be bound below after UI
+-- Run monitor
+local RunLabel
 t_spawn(function()
     while t_wait(0.25) do
         pcall(function()
-            local myChar = LP.Character; if not myChar then return end
-            local myHum  = myChar:FindFirstChild("Humanoid"); if not myHum then return end
-            local hp     = myHum.Health
-            local maxHP  = myHum.MaxHealth
-            local hpPct  = hp / math.max(maxHP, 1)
-
-            local hunters = getHuntersNearby()
-            local inDanger = hpPct < 0.28 and #hunters > 0
-
-            -- Critical run: very low HP with hunter nearby
-            if hpPct < 0.15 and #hunters > 0 and not RunState.Active then
-                getgenv().Retreating = true
-                clearTarget()
-                doSmartRun()
-            end
-
-            -- Moderate danger: retreat but don't full run yet
-            if inDanger and not RunState.Active and not getgenv().Retreating then
-                getgenv().Retreating = true
-                clearTarget()
-                task.delay(0.5, function()
+            local myChar=LP.Character; if not myChar then return end
+            local myHum=myChar:FindFirstChild("Humanoid"); if not myHum then return end
+            local hp=myHum.Health; local maxHP=myHum.MaxHealth
+            local hpPct=hp/math.max(maxHP,1)
+            local hunters=getHuntersNearby()
+            if hpPct<0.15 and #hunters>0 and not RunState.Active then
+                getgenv().Retreating=true; clearTarget(); doSmartRun()
+            elseif hpPct<0.28 and #hunters>0 and not RunState.Active and not getgenv().Retreating then
+                getgenv().Retreating=true; clearTarget()
+                task.delay(0.5,function()
                     if LP.Character then
-                        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+                        local hrp=LP.Character:FindFirstChild("HumanoidRootPart")
                         if hrp then
-                            -- Move away
-                            local away = Vector3.new(math.random(-1,1)*60, 20, math.random(-1,1)*60)
-                            hrp.CFrame = CFrame.new(hrp.Position + away)
+                            local away=Vector3.new(math.random(-1,1)*60,20,math.random(-1,1)*60)
+                            hrp.CFrame=CFrame.new(hrp.Position+away)
                         end
                     end
                 end)
             end
-
-            -- Update run label if it exists
             if RunLabel then
                 if RunState.Active then
-                    RunLabel.Text = "🏃 RUNNING"
-                    RunLabel.TextColor3 = Color3.fromRGB(255,200,50)
-                elseif #hunters > 0 and hpPct < 0.4 then
-                    RunLabel.Text = "⚠ DANGER: "..#hunters.." hunter"
-                    RunLabel.TextColor3 = Color3.fromRGB(255,100,100)
-                elseif #hunters > 0 then
-                    RunLabel.Text = "👁 "..#hunters.." hunter nearby"
-                    RunLabel.TextColor3 = Color3.fromRGB(255,160,50)
+                    RunLabel.Text="🏃 RUNNING"; RunLabel.TextColor3=Color3.fromRGB(255,200,50)
+                elseif #hunters>0 and hpPct<0.4 then
+                    RunLabel.Text="⚠ DANGER: "..#hunters; RunLabel.TextColor3=Color3.fromRGB(255,100,100)
+                elseif #hunters>0 then
+                    RunLabel.Text="👁 "..#hunters.." hunter"; RunLabel.TextColor3=Color3.fromRGB(255,160,50)
                 else
-                    RunLabel.Text = "✅ SAFE"
-                    RunLabel.TextColor3 = Color3.fromRGB(100,220,100)
+                    RunLabel.Text="✅ SAFE"; RunLabel.TextColor3=Color3.fromRGB(100,220,100)
                 end
             end
         end)
@@ -881,6 +701,7 @@ end)
 -- ══════════════════════════════════════════════
 LP.CharacterAdded:Connect(function(char)
     LastRespawn=tick(); getgenv().Retreating=false
+    RunState.Active=false
     local hum=char:WaitForChild("Humanoid",10); if not hum then return end
     hum.HealthChanged:Connect(function(newHP)
         if newHP>=hum.MaxHealth then return end
@@ -969,12 +790,10 @@ t_spawn(function()
                 Blacklist[t.Name]=now; clearTarget(); TargetTimer[t.Name]=nil; return
             end
             if getgenv().Retreating then clearTarget(); return end
-            if RunState.Active then return end  -- skip combat while running
+            if RunState.Active then return end
             local d=(myHRP.Position-t.HumanoidRootPart.Position).Magnitude
             if d>ENGAGE_RANGE then clearTarget(); return end
             applyHitbox(t)
-            -- Weapon equip handled by Combo engine (toggles BananaCat Setting)
-            -- BananaCat itself handles EquipTool based on Setting["Weapons"]
         end)
     end
 end)
@@ -1031,7 +850,7 @@ t_spawn(function()
 end)
 
 -- ══════════════════════════════════════════════
---  ANTI-KICK reconnect
+--  ANTI-KICK
 -- ══════════════════════════════════════════════
 t_spawn(function()
     pcall(function()
@@ -1042,15 +861,15 @@ t_spawn(function()
 end)
 
 -- ══════════════════════════════════════════════
---  FPS COUNTER
+--  FPS
 -- ══════════════════════════════════════════════
 S.RS.RenderStepped:Connect(function() FrameCount=FrameCount+1 end)
 t_spawn(function() while t_wait(1) do CurrentFPS=FrameCount; FrameCount=0 end end)
 
 -- ══════════════════════════════════════════════
 --  UI  — Purple-Dark Theme
+--  Forward declarations
 -- ══════════════════════════════════════════════
--- Forward declarations (dùng trong UI trước khi định nghĩa)
 local doHop
 local isHopping    = false
 local autoHopStart = tick()
@@ -1059,35 +878,13 @@ pcall(function() local o=S.CG:FindFirstChild("DORA_UI"); if o then o:Destroy() e
 
 local function rgb(r,g,b) return Color3.fromRGB(r,g,b) end
 
--- ─────────────────────────────────────────────
---  COLOR PALETTE  (Purple × Midnight)
--- ─────────────────────────────────────────────
-local C = {
-    BG      = rgb(9, 7, 20),      -- nền chính
-    BG2     = rgb(13,10,28),      -- nền phụ
-    PANEL   = rgb(16,12,34),      -- panel card
-    TOP     = rgb(7, 5, 16),      -- top bar
-    BORDER  = rgb(55,35,100),     -- viền mờ
-    BORDER2 = rgb(100,60,200),    -- viền sáng
-    -- Accents
-    PURPLE  = rgb(155,90,255),    -- chính (purple)
-    PURPLE2 = rgb(30,15,60),      -- bg purple
-    GOLD    = rgb(255,200,60),    -- earned
-    GOLD2   = rgb(50,38,10),
-    ROSE    = rgb(255,100,140),   -- hp/lost
-    ROSE2   = rgb(55,12,28),
-    VIOLET  = rgb(180,140,255),   -- kills
-    VIO2    = rgb(30,18,60),
-    TEAL    = rgb(60,220,190),    -- target/online
-    TEAL2   = rgb(8,50,44),
-    LIME    = rgb(120,235,80),    -- net +
-    ORANGE  = rgb(255,160,50),    -- hop/warn
-    -- Neutrals
-    TEXT    = rgb(230,225,255),
-    SUB     = rgb(140,125,195),
-    DIM     = rgb(70,55,120),
-    DARK    = rgb(12,9,26),
-    WHITE   = rgb(255,255,255),
+local C={
+    BG=rgb(9,7,20),BG2=rgb(13,10,28),PANEL=rgb(16,12,34),TOP=rgb(7,5,16),
+    BORDER=rgb(55,35,100),BORDER2=rgb(100,60,200),
+    PURPLE=rgb(155,90,255),GOLD=rgb(255,200,60),ROSE=rgb(255,100,140),
+    VIOLET=rgb(180,140,255),TEAL=rgb(60,220,190),LIME=rgb(120,235,80),
+    ORANGE=rgb(255,160,50),SUB=rgb(140,125,195),DIM=rgb(70,55,120),
+    DARK=rgb(12,9,26),WHITE=rgb(255,255,255),
 }
 
 local function cr(p,r) local c=Instance.new("UICorner",p); c.CornerRadius=UDim.new(0,r or 8) end
@@ -1105,7 +902,7 @@ local function mkF(parent,x,y,w,h,col,tr)
 end
 local function mkL(parent,txt,size,color,font,xa,ya)
     local l=Instance.new("TextLabel"); l.BackgroundTransparency=1
-    l.Text=txt or ""; l.TextSize=size or 12; l.TextColor3=color or C.TEXT
+    l.Text=txt or ""; l.TextSize=size or 12; l.TextColor3=color or C.WHITE
     l.Font=font or Enum.Font.Gotham
     l.TextXAlignment=xa or Enum.TextXAlignment.Left
     l.TextYAlignment=ya or Enum.TextYAlignment.Center
@@ -1119,48 +916,36 @@ end
 local ScreenGui=Instance.new("ScreenGui")
 ScreenGui.Name="DORA_UI"; ScreenGui.ResetOnSpawn=false
 ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; ScreenGui.Parent=S.CG
-
 local UIVisible=true
 
--- ─────────────────────────────────────────────
---  MAIN FRAME  580 × dynamic
--- ─────────────────────────────────────────────
+-- MAIN FRAME
 local Main=Instance.new("Frame"); Main.Name="Main"
 Main.Size=UDim2.new(0,580,0,560); Main.Position=UDim2.new(0.5,-290,0.5,-280)
 Main.BackgroundColor3=C.BG; Main.Active=true; Main.Draggable=true; Main.ClipsDescendants=false
 Main.Parent=ScreenGui; Main.BorderSizePixel=0
-cr(Main,18); stk(Main,C.BORDER2,0.2,1.5)
-grad(Main,rgb(12,9,26),rgb(7,5,16),160)
+cr(Main,18); stk(Main,C.BORDER2,0.2,1.5); grad(Main,rgb(12,9,26),rgb(7,5,16),160)
 
--- ── TOP BAR  h=40 ──
+-- TOP BAR
 local Top=mkF(Main,{0,0},{0,0},{1,0},{0,40},C.TOP,0); cr(Top,18)
-mkF(Top,{0,0},{1,-1},{1,0},{0,1},C.BORDER2,0.4)
-grad(Top,rgb(12,9,24),rgb(7,5,16),90)
-
--- Logo pulse dot
-local logoDot=mkF(Top,{0,14},{0.5,-5},{0,10},{0,10},C.PURPLE,0); cr(logoDot,5)
-
+mkF(Top,{0,0},{1,-1},{1,0},{0,1},C.BORDER2,0.4); grad(Top,rgb(12,9,24),rgb(7,5,16),90)
+mkF(Top,{0,14},{0.5,-5},{0,10},{0,10},C.PURPLE,0); cr(Top:FindFirstChild("Frame"),5)
 local TitleL=mkL(Top,"⚡ DORA VIP",14,C.WHITE,Enum.Font.GothamBold)
 TitleL.Size=UDim2.new(0,120,1,0); TitleL.Position=UDim2.new(0,30,0,0)
-
 local TopInfo=mkL(Top,"-- ms  |  Players: --",11,C.SUB)
 TopInfo.Size=UDim2.new(0,190,1,0); TopInfo.Position=UDim2.new(0,156,0,0)
 
--- BLACK SCREEN button
+-- BLACK SCREEN
 local BtnBlack=Instance.new("TextButton",Top)
 BtnBlack.Size=UDim2.new(0,68,0,22); BtnBlack.Position=UDim2.new(1,-132,0.5,-11)
 BtnBlack.BackgroundColor3=rgb(22,14,40); BtnBlack.BorderSizePixel=0
 BtnBlack.Font=Enum.Font.GothamBold; BtnBlack.TextSize=9; BtnBlack.Text="⬛ BLACK"
 BtnBlack.TextColor3=C.DIM; cr(BtnBlack,7); stk(BtnBlack,C.BORDER,0.4)
-
--- Black screen frame
 local BlackBG=Instance.new("Frame",ScreenGui)
 BlackBG.Size=UDim2.new(1,0,1,0); BlackBG.BackgroundColor3=Color3.fromRGB(0,0,0)
 BlackBG.ZIndex=100; BlackBG.Active=true; BlackBG.BorderSizePixel=0
 local isBlack=false
 pcall(function() if isfile and readfile and isfile("Suc_Blackout.txt") then isBlack=readfile("Suc_Blackout.txt")=="true" end end)
-BlackBG.Visible=isBlack
-BtnBlack.TextColor3=isBlack and C.ROSE or C.DIM
+BlackBG.Visible=isBlack; BtnBlack.TextColor3=isBlack and C.ROSE or C.DIM
 pcall(function() S.RS:Set3dRenderingEnabled(not isBlack) end)
 BtnBlack.MouseButton1Click:Connect(function()
     isBlack=not isBlack; BlackBG.Visible=isBlack
@@ -1168,11 +953,10 @@ BtnBlack.MouseButton1Click:Connect(function()
     pcall(function() S.RS:Set3dRenderingEnabled(not isBlack) end)
     pcall(function() if writefile then writefile("Suc_Blackout.txt",tostring(isBlack)) end end)
 end)
-
 local TopFPS=mkL(Top,"FPS --",10,C.DIM,Enum.Font.Code,Enum.TextXAlignment.Right)
 TopFPS.Size=UDim2.new(0,52,1,0); TopFPS.Position=UDim2.new(1,-58,0,0)
 
--- ── PROFILE SECTION  y=50 ──
+-- PROFILE
 local AvF=mkF(Main,{0,14},{0,50},{0,64},{0,64},C.PANEL,0)
 cr(AvF,32); stk(AvF,C.PURPLE,0.4); AvF.ClipsDescendants=true
 local AvImg=Instance.new("ImageLabel",AvF)
@@ -1180,7 +964,6 @@ AvImg.Size=UDim2.new(1,0,1,0); AvImg.BackgroundTransparency=1
 AvImg.ScaleType=Enum.ScaleType.Crop
 AvImg.Image="rbxthumb://type=AvatarHeadShot&id="..LP.UserId.."&w=150&h=150"; cr(AvImg,32)
 local ring=mkF(Main,{0,64},{0,96},{0,14},{0,14},C.TEAL,0); cr(ring,7); stk(ring,C.BG,0,2)
-
 local NmL=mkL(Main,LP.Name,16,C.WHITE,Enum.Font.GothamBold)
 NmL.Size=UDim2.new(0,260,0,22); NmL.Position=UDim2.new(0,88,0,53)
 local RoleL=mkL(Main,"⚡ AUTO FARM  ●  ACTIVE",10,C.PURPLE)
@@ -1196,22 +979,17 @@ local function mkPill2(y,icon,lbl,col)
     local vl=mkL(Main,"--",12,col,Enum.Font.Code,Enum.TextXAlignment.Right)
     vl.Size=UDim2.new(0,140,0,14); vl.Position=UDim2.new(0,248,0,y); return vl
 end
-local iBounty = mkPill(96,  "💰","Bounty", C.GOLD)
-local iHP     = mkPill(110, "❤","HP",      C.ROSE)
-local iLost   = mkPill2(96, "💸","Mất",    C.ROSE)
-local iNet    = mkPill2(110,"📊","Net",    C.LIME)
-
+local iBounty=mkPill(96,"💰","Bounty",C.GOLD); local iHP=mkPill(110,"❤","HP",C.ROSE)
+local iLost=mkPill2(96,"💸","Mất",C.ROSE); local iNet=mkPill2(110,"📊","Net",C.LIME)
 sep(Main,126)
 
--- ── 4 CARDS  y=134 ──
+-- 4 CARDS
 local CW,CH=173,92; local CX1=14; local CX2=CX1+CW+8; local CX3=CX2+CW+8
 local CY1=134; local CY2c=CY1+CH+8
-
 local function mkCard(cx,cy,bg1,bg2,ac,icon,title,sub)
     local f=mkF(Main,{0,cx},{0,cy},{0,CW},{0,CH},bg1,0)
     cr(f,14); stk(f,ac,0.5); grad(f,bg1,bg2,145)
-    local stripe=mkF(f,{0,0},{0,0},{1,0},{0,3},ac,0.25); cr(stripe,14)
-    grad(stripe,ac,rgb(0,0,0),0)
+    local stripe=mkF(f,{0,0},{0,0},{1,0},{0,3},ac,0.25); cr(stripe,14); grad(stripe,ac,rgb(0,0,0),0)
     local ibg=mkF(f,{0,10},{0,12},{0,38},{0,38},ac,0.8); cr(ibg,19)
     mkL(ibg,icon,20,C.WHITE,Enum.Font.GothamBold,Enum.TextXAlignment.Center)
     local tl=mkL(f,title,9,ac,Enum.Font.GothamBold)
@@ -1222,105 +1000,86 @@ local function mkCard(cx,cy,bg1,bg2,ac,icon,title,sub)
     sl.Size=UDim2.new(1,-4,0,14); sl.Position=UDim2.new(0,2,0,76)
     return vl,sl
 end
-
-local cEarned,cEarnedS = mkCard(CX1,CY1, rgb(18,10,8), rgb(10,6,4),   C.GOLD,   "💰","BOUNTY EARNED","session total")
-local cTime,  cTimeS   = mkCard(CX2,CY1, rgb(10,8,28), rgb(6,5,18),   C.PURPLE, "⏱","TIME ELAPSED", "played time")
-local cKills, cKillsS  = mkCard(CX1,CY2c,rgb(20,10,36),rgb(12,6,22),  C.VIOLET, "☠","TOTAL KILLS",  "this session")
-local cTarget,cTargetS = mkCard(CX2,CY2c,rgb(8,28,24), rgb(5,18,16),  C.TEAL,   "🎯","TARGET",       "health: --")
+local cEarned,cEarnedS=mkCard(CX1,CY1,rgb(18,10,8),rgb(10,6,4),C.GOLD,"💰","BOUNTY EARNED","session total")
+local cTime,cTimeS=mkCard(CX2,CY1,rgb(10,8,28),rgb(6,5,18),C.PURPLE,"⏱","TIME ELAPSED","played time")
+local cKills,cKillsS=mkCard(CX1,CY2c,rgb(20,10,36),rgb(12,6,22),C.VIOLET,"☠","TOTAL KILLS","this session")
+local cTarget,cTargetS=mkCard(CX2,CY2c,rgb(8,28,24),rgb(5,18,16),C.TEAL,"🎯","TARGET","health: --")
 cTarget.TextSize=12; cEarned.TextSize=22; cTime.TextSize=16
 
--- ── RIGHT PANEL (PLAYER INFO) ──
-local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+30},rgb(14,10,30),0)
+-- RIGHT PANEL
+local rPanel=mkF(Main,{0,CX3},{0,CY1},{0,CW},{0,CH*2+6},rgb(14,10,30),0)
 cr(rPanel,14); stk(rPanel,C.BORDER2,0.55); grad(rPanel,rgb(16,12,34),rgb(10,7,22),140)
-
--- Header với RESET button
 local rHL=mkL(rPanel,"📋  PLAYER INFO",9,C.DIM,Enum.Font.GothamBold)
 rHL.Size=UDim2.new(1,-52,0,16); rHL.Position=UDim2.new(0,10,0,6)
-
 local ResetBtn=Instance.new("TextButton",rPanel)
 ResetBtn.Size=UDim2.new(0,40,0,16); ResetBtn.Position=UDim2.new(1,-44,0,5)
 ResetBtn.BackgroundColor3=rgb(45,12,22); ResetBtn.BorderSizePixel=0
 ResetBtn.Font=Enum.Font.GothamBold; ResetBtn.TextSize=9
-ResetBtn.TextColor3=C.ROSE; ResetBtn.Text="↺ RST"
-cr(ResetBtn,5); stk(ResetBtn,C.ROSE,0.5)
-
+ResetBtn.TextColor3=C.ROSE; ResetBtn.Text="↺ RST"; cr(ResetBtn,5); stk(ResetBtn,C.ROSE,0.5)
 local ResetConfirm=false
 ResetBtn.MouseButton1Click:Connect(function()
     if not ResetConfirm then
         ResetConfirm=true; ResetBtn.Text="Sure?"; ResetBtn.BackgroundColor3=rgb(80,20,30)
-        task.delay(2, function() ResetConfirm=false; pcall(function() ResetBtn.Text="↺ RST"; ResetBtn.BackgroundColor3=rgb(45,12,22) end) end)
+        task.delay(2,function() ResetConfirm=false; pcall(function() ResetBtn.Text="↺ RST"; ResetBtn.BackgroundColor3=rgb(45,12,22) end) end)
     else
         ResetConfirm=false
-        TotalEarned=0; HourEarned=0; Kills=0; TotalLost=0
-        PlayedTime2=0; SessionStart=os.time()
-        SaveFile(FileName,0); SaveFile(KillFile,0); SaveFile(HourFile,0)
-        SaveFile(LostFile,0); SaveFile(TimeFile,0)
+        TotalEarned=0; HourEarned=0; Kills=0; TotalLost=0; PlayedTime2=0; SessionStart=os.time()
+        SaveFile(FileName,0); SaveFile(KillFile,0); SaveFile(HourFile,0); SaveFile(LostFile,0); SaveFile(TimeFile,0)
         BphHistory={}; SaveBphHist(); refreshHist()
         ResetBtn.Text="↺ RST"; ResetBtn.BackgroundColor3=rgb(45,12,22)
     end
 end)
-
 mkF(rPanel,{0,8},{0,25},{1,-16},{0,1},C.BORDER,0.6)
-
 local function mkRRow(yy,icon,lbl,col)
     local l=mkL(rPanel,icon.." "..lbl,9,C.DIM); l.Size=UDim2.new(0,90,0,18); l.Position=UDim2.new(0,8,0,yy)
     local v=mkL(rPanel,"--",13,col,Enum.Font.Code,Enum.TextXAlignment.Right)
     v.Size=UDim2.new(1,-12,0,18); v.Position=UDim2.new(0,0,0,yy); return v
 end
-local rBounty = mkRRow(29,  "💰","Bounty",  C.GOLD)
-local rHP     = mkRRow(50,  "❤","HP",       C.ROSE)
-local rLost   = mkRRow(71,  "💸","Mất",     C.ROSE)
-local rNet    = mkRRow(92,  "📊","Net",     C.LIME)
-local rBPH    = mkRRow(113, "📈","BPH",     C.GOLD)
-local rKills  = mkRRow(134, "☠","Kills/h",  C.VIOLET)
-mkF(rPanel,{0,8},{0,155},{1,-16},{0,1},C.BORDER,0.6)
-local rPing   = mkRRow(160, "📡","Ping",    C.PURPLE)
-mkF(rPanel,{0,8},{0,181},{1,-16},{0,1},C.BORDER,0.6)
-local rRun    = mkRRow(186, "🏃","Status",  C.LIME)
-
+local rBounty=mkRRow(29,"💰","Bounty",C.GOLD); local rHP=mkRRow(50,"❤","HP",C.ROSE)
+local rLost=mkRRow(71,"💸","Mất",C.ROSE); local rNet=mkRRow(92,"📊","Net",C.LIME)
+mkF(rPanel,{0,8},{0,113},{1,-16},{0,1},C.BORDER,0.6)
+local rPing=mkRRow(118,"📡","Ping",C.PURPLE)
+mkF(rPanel,{0,8},{0,138},{1,-16},{0,1},C.BORDER,0.6)
+local rRun=mkRRow(143,"🏃","Status",C.LIME)
 sep(Main,336)
 
--- ── AUTO HOP BAR  y=340 ──
-local HopBar=mkF(Main,{0,14},{0,340},{1,-28},{0,36},rgb(12,8,26),0)
-cr(HopBar,10); stk(HopBar,C.BORDER,0.5); grad(HopBar,rgb(14,10,30),rgb(9,6,20),90)
-local HopIcon=mkL(HopBar,"⟳",13,C.PURPLE,Enum.Font.GothamBold,Enum.TextXAlignment.Center)
-HopIcon.Size=UDim2.new(0,22,1,0); HopIcon.Position=UDim2.new(0,8,0,0)
-local HopTimerL=mkL(HopBar,"⏳  Auto Hop: 10:00",11,C.PURPLE,Enum.Font.GothamBold)
-HopTimerL.Size=UDim2.new(0,170,1,0); HopTimerL.Position=UDim2.new(0,32,0,0)
+-- ── COMPACT BPH + HOP ROW y=342 ──
+local BphRow=mkF(Main,{0,14},{0,342},{1,-28},{0,30},C.DARK,0)
+cr(BphRow,10); stk(BphRow,C.BORDER,0.7); grad(BphRow,rgb(11,15,30),rgb(7,9,20),90)
+local BphLbl=mkL(BphRow,"📈  BPH: 0/h",11,C.GOLD,Enum.Font.GothamBold)
+BphLbl.Size=UDim2.new(0,140,1,0); BphLbl.Position=UDim2.new(0,10,0,0)
+local BphRst=mkL(BphRow,"60m 00s",9,C.SUB)
+BphRst.Size=UDim2.new(0,70,1,0); BphRst.Position=UDim2.new(0,148,0,0)
+-- Hop btn compact (right side of BPH row)
+local BtnHop=Instance.new("TextButton",BphRow)
+BtnHop.Size=UDim2.new(0,86,0,22); BtnHop.Position=UDim2.new(1,-90,0.5,-11)
+BtnHop.BackgroundColor3=C.PURPLE2; BtnHop.BorderSizePixel=0
+BtnHop.Font=Enum.Font.GothamBold; BtnHop.TextSize=9
+BtnHop.TextColor3=C.PURPLE; BtnHop.Text="⟳ HOP SV"
+cr(BtnHop,8); stk(BtnHop,C.PURPLE,0.52)
+BtnHop.MouseButton1Click:Connect(function() if not isHopping then doHop() end end)
+local HopTimerL=mkL(BphRow,"",9,C.DIM,Enum.Font.Code,Enum.TextXAlignment.Right) -- hidden text for compat
+HopTimerL.Size=UDim2.new(0,0,0,0); HopTimerL.Visible=false
+local HopIcon=mkL(BphRow,"",9,C.PURPLE,Enum.Font.Code); HopIcon.Size=UDim2.new(0,0,0,0); HopIcon.Visible=false
+local StatusBadge=mkL(BphRow,"",9,C.DIM); StatusBadge.Size=UDim2.new(0,0,0,0); StatusBadge.Visible=false
+local HopProgBG=mkF(Main,{0,14},{0,0},{0,0},{0,0},C.DARK,1) -- hidden compat
+local HopProgFill=mkF(HopProgBG,{0,0},{0,0},{0,0},{1,0},C.PURPLE,1)
 
-local StatusBadge=Instance.new("TextButton",HopBar)
-StatusBadge.Size=UDim2.new(0,120,0,22); StatusBadge.Position=UDim2.new(1,-124,0.5,-11)
-StatusBadge.BackgroundColor3=C.DARK; StatusBadge.Font=Enum.Font.GothamBold
-StatusBadge.TextSize=9; StatusBadge.TextColor3=C.DIM; StatusBadge.Text="● NO TARGET"
-StatusBadge.BorderSizePixel=0; cr(StatusBadge,8); stk(StatusBadge,C.BORDER,0.4)
-StatusBadge.MouseButton1Click:Connect(function() if not isHopping then doHop() end end)
-
-local HopProgBG=mkF(Main,{0,14},{0,378},{1,-28},{0,4},C.DARK,0)
-cr(HopProgBG,2); stk(HopProgBG,C.BORDER,0.8)
-local HopProgFill=mkF(HopProgBG,{0,0},{0,0},{0,0},{1,0},C.PURPLE,0)
-cr(HopProgFill,2); grad(HopProgFill,C.PURPLE,rgb(100,60,200),0)
-
--- ── BPH BAR  y=386 ──
-local BphLbl=mkL(Main,"📈  BPH: 0/h",13,C.GOLD,Enum.Font.GothamBold)
-BphLbl.Size=UDim2.new(0,130,0,28); BphLbl.Position=UDim2.new(0,14,0,384)
-local BphRst=mkL(Main,"reset 60m 00s",10,C.SUB)
-BphRst.Size=UDim2.new(0,130,0,28); BphRst.Position=UDim2.new(0,148,0,384)
-local BphBG=mkF(Main,{0,14},{0,414},{1,-28},{0,5},C.DARK,0)
-cr(BphBG,3); stk(BphBG,C.BORDER,0.75)
+-- BPH progress bar
+local BphBG=mkF(Main,{0,14},{0,374},{1,-28},{0,4},C.DARK,0)
+cr(BphBG,2); stk(BphBG,C.BORDER,0.8)
 local BphFill=mkF(BphBG,{0,0},{0,0},{0,0},{1,0},C.GOLD,0)
-cr(BphFill,3); grad(BphFill,C.GOLD,rgb(255,140,20),0)
+cr(BphFill,2); grad(BphFill,C.GOLD,rgb(255,140,20),0)
+sep(Main,386)
 
-sep(Main,426)
-
--- ── BPH HISTORY  y=430 ──
+-- BPH HISTORY
 local _bhl=mkL(Main,"📈  BPH HISTORY",10,C.DIM,Enum.Font.GothamBold)
-_bhl.Size=UDim2.new(1,-28,0,16); _bhl.Position=UDim2.new(0,14,0,432)
-local HistEmpty=mkL(Main,"Chua co du lieu...",10,C.DIM,Enum.Font.Gotham,Enum.TextXAlignment.Center)
-HistEmpty.Size=UDim2.new(1,-28,0,16); HistEmpty.Position=UDim2.new(0,14,0,452)
-
+_bhl.Size=UDim2.new(1,-28,0,16); _bhl.Position=UDim2.new(0,14,0,390)
+local HistEmpty=mkL(Main,"Chưa có dữ liệu...",10,C.DIM,Enum.Font.Gotham,Enum.TextXAlignment.Center)
+HistEmpty.Size=UDim2.new(1,-28,0,16); HistEmpty.Position=UDim2.new(0,14,0,410)
 local histRows={}
 for i=1,5 do
-    local yy=452+(i-1)*26
+    local yy=410+(i-1)*26
     local row=mkF(Main,{0,14},{0,yy},{1,-28},{0,22},C.PANEL,0.05)
     cr(row,6); stk(row,C.BORDER,0.7); row.Visible=false
     local rp=Instance.new("UIPadding",row)
@@ -1332,37 +1091,47 @@ for i=1,5 do
     kL.Size=UDim2.new(0,80,1,0); kL.Position=UDim2.new(1,-80,0,0)
     histRows[i]={f=row,t=tL,v=vL,k=kL}
 end
-
 local function refreshHist()
-    local any=#BphHistory>0; HistEmpty.Visible=not any
-    for i=1,5 do
-        local h=BphHistory[i]
-        if h then
-            histRows[i].f.Visible=true; histRows[i].t.Text=h.time
-            histRows[i].v.Text=formatNumber(h.bph).."/h"
-            histRows[i].k.Text=tostring(h.kills).." kills"
-        else histRows[i].f.Visible=false end
-    end
-    local histH=any and (4+math.min(#BphHistory,5)*26) or 20
-    Main.Size=UDim2.new(0,580,0,452+histH+28)
+    -- Bọc trong pcall để tránh lỗi nil crash
+    pcall(function()
+        local clean={}
+        for _,h in ipairs(BphHistory) do
+            if type(h)=="table" and h.time and h.bph~=nil and h.kills~=nil then
+                table.insert(clean,h)
+            end
+        end
+        BphHistory=clean
+        local any=#BphHistory>0; HistEmpty.Visible=not any
+        for i=1,5 do
+            local h=BphHistory[i]
+            if h then
+                histRows[i].f.Visible=true
+                histRows[i].t.Text=tostring(h.time or "--")
+                histRows[i].v.Text=formatNumber(math.max(0,tonumber(h.bph) or 0)).."/h"
+                histRows[i].k.Text=tostring(math.max(0,tonumber(h.kills) or 0)).." kills"
+            else
+                histRows[i].f.Visible=false
+            end
+        end
+        local histH=any and (4+math.min(#BphHistory,5)*26) or 20
+        Main.Size=UDim2.new(0,580,0,410+histH+28)
+    end)
 end
 refreshHist()
--- Bind RunLabel to the rRun row in right panel
-RunLabel = rRun
+RunLabel=rRun
 
--- ── FOOTER ──
+-- FOOTER
 local FooterL=mkL(Main,"FPS: --  |  PING: -- ms",10,C.DIM,Enum.Font.Code)
 FooterL.Size=UDim2.new(0,200,0,22); FooterL.Position=UDim2.new(0,14,1,-24)
 local HintL=mkL(Main,"[RSHIFT] hide",10,C.DIM,Enum.Font.Gotham,Enum.TextXAlignment.Right)
 HintL.Size=UDim2.new(0,76,0,22); HintL.Position=UDim2.new(1,-82,1,-24)
 mkF(Main,{0,14},{1,-28},{1,-28},{0,1},C.BORDER,0.6)
 
--- ── MINI BAR ──
+-- MINI BAR
 local Mini=Instance.new("Frame",ScreenGui)
 Mini.Size=UDim2.new(0,200,0,34); Mini.Position=UDim2.new(0.5,-100,0,8)
 Mini.BackgroundColor3=C.BG2; Mini.Active=true; Mini.Draggable=true; Mini.Visible=false
-Mini.BorderSizePixel=0; cr(Mini,17); stk(Mini,C.BORDER2,0.3)
-grad(Mini,rgb(14,10,28),rgb(8,6,18),90)
+Mini.BorderSizePixel=0; cr(Mini,17); stk(Mini,C.BORDER2,0.3); grad(Mini,rgb(14,10,28),rgb(8,6,18),90)
 local _md=mkF(Mini,{0,11},{0.5,-5},{0,10},{0,10},C.PURPLE,0); cr(_md,5)
 local MName=mkL(Mini,"⚡ DORA VIP",12,C.WHITE,Enum.Font.GothamBold)
 MName.Size=UDim2.new(0,100,1,0); MName.Position=UDim2.new(0,27,0,0)
@@ -1372,8 +1141,6 @@ MOpen.BackgroundColor3=C.DARK; MOpen.Font=Enum.Font.GothamBold
 MOpen.TextSize=10; MOpen.TextColor3=C.SUB; MOpen.Text="▲ Open"
 MOpen.BorderSizePixel=0; cr(MOpen,8); stk(MOpen,C.BORDER,0.5)
 MOpen.MouseButton1Click:Connect(function() UIVisible=true; Main.Visible=true; Mini.Visible=false end)
-
--- RightShift toggle (không bị game chặn)
 S.UIS.InputBegan:Connect(function(inp,gp)
     if inp.UserInputType==Enum.UserInputType.Keyboard
     and inp.KeyCode==Enum.KeyCode.RightShift then
@@ -1384,120 +1151,81 @@ end)
 -- ══════════════════════════════════════════════
 --  AUTO HOP
 -- ══════════════════════════════════════════════
-local HOP_INTERVAL = 10 * 60
--- autoHopStart và isHopping đã khai báo forward ở trên
+local HOP_INTERVAL=10*60
 
-local function hopLog(msg, col)
+local function hopLog(msg,col)
     pcall(function()
-        if HopTimerL then
-            HopTimerL.Text = msg
-            HopTimerL.TextColor3 = col or C.ORANGE
-        end
-        if HopIcon then
-            HopIcon.TextColor3 = col or C.ORANGE
-        end
+        if HopTimerL then HopTimerL.Text=msg; HopTimerL.TextColor3=col or C.ORANGE end
+        if HopIcon then HopIcon.TextColor3=col or C.ORANGE end
     end)
 end
 
-doHop = function()
+doHop=function()
     if isHopping then return end
-    isHopping = true
-    SaveAllState()
-    hopLog("⏳  Đang quét server...", C.ORANGE)
-
+    isHopping=true; SaveAllState()
+    hopLog("⏳  Đang quét server...",C.ORANGE)
+    pcall(function() BtnHop.Text="⟳ Đang tìm..."; BtnHop.TextColor3=C.GOLD end)
     t_spawn(function()
-        local placeId = game.PlaceId
-        local servers = {}
-        local errMsg  = "Không rõ"
-
-        -- Bước 1: fetch server list (tối đa 6 trang x 100)
-        local cursor = ""
-        for page = 1, 6 do
-            local url = "https://games.roblox.com/v1/games/"..placeId
+        local placeId=game.PlaceId; local servers={}; local errMsg="Không rõ"; local cursor=""
+        for page=1,6 do
+            local url="https://games.roblox.com/v1/games/"..placeId
                 .."/servers/Public?sortOrder=Desc&limit=100"
                 ..(cursor~="" and ("&cursor="..cursor) or "")
-
-            local ok1, raw = pcall(function() return game:HttpGet(url) end)
-            if not ok1 then errMsg = "HttpGet fail"; break end
-            if not raw or #raw < 10 then errMsg = "Response rỗng"; break end
-
-            local ok2, data = pcall(function() return S.HTTP:JSONDecode(raw) end)
-            if not ok2 or not data then errMsg = "JSON fail"; break end
-            if not data.data then errMsg = "data.data nil"; break end
-
-            for _, sv in ipairs(data.data) do
+            local ok1,raw=pcall(function() return game:HttpGet(url) end)
+            if not ok1 then errMsg="HttpGet fail"; break end
+            if not raw or #raw<10 then errMsg="Response rong"; break end
+            local ok2,data=pcall(function() return S.HTTP:JSONDecode(raw) end)
+            if not ok2 or not data then errMsg="JSON fail"; break end
+            if not data.data then errMsg="data nil"; break end
+            for _,sv in ipairs(data.data) do
                 if type(sv)=="table" and sv.id and sv.id~=game.JobId
-                and sv.playing and sv.maxPlayers
-                and sv.playing >= 1
-                and sv.playing < sv.maxPlayers then
-                    table.insert(servers, sv)
+                and sv.playing and sv.maxPlayers and sv.playing>=1 and sv.playing<sv.maxPlayers then
+                    table.insert(servers,sv)
                 end
             end
-
-            hopLog("⏳  Quét trang "..page.." ("..#servers.." sv)", C.ORANGE)
-
-            local nc = (data.nextPageCursor and data.nextPageCursor~="") and data.nextPageCursor or ""
-            if nc == "" then break end
-            cursor = nc
-            if #servers >= 30 then break end
-            task.wait(0.25)
+            hopLog("⏳  Trang "..page.." ("..#servers.." sv)",C.ORANGE)
+            local nc=(data.nextPageCursor and data.nextPageCursor~="") and data.nextPageCursor or ""
+            if nc=="" then break end; cursor=nc
+            if #servers>=30 then break end; task.wait(0.25)
         end
-
-        -- Bước 2: chọn server tốt nhất
-        local best = nil
-        if #servers > 0 then
-            local bestScore = -math.huge
-            for _, sv in ipairs(servers) do
-                local fill  = sv.playing / math.max(sv.maxPlayers, 1)
-                local score = sv.playing - (fill > 0.9 and 999 or 0)
-                if score > bestScore then bestScore = score; best = sv end
+        local best=nil
+        if #servers>0 then
+            local bestScore=-math.huge
+            for _,sv in ipairs(servers) do
+                local fill=sv.playing/math.max(sv.maxPlayers,1)
+                local score=sv.playing-(fill>0.9 and 999 or 0)
+                if score>bestScore then bestScore=score; best=sv end
             end
-            hopLog("✅  "..#servers.." sv — chọn: "..best.playing.."/"..best.maxPlayers, C.LIME)
+            hopLog("✅  "..#servers.." sv → "..best.playing.."/"..best.maxPlayers,C.LIME)
         else
-            hopLog("❌  Không tìm được sv: "..errMsg, C.ROSE)
+            hopLog("❌  "..errMsg,C.ROSE)
         end
-
         task.wait(1.2)
-
-        -- Bước 3: teleport
         if best then
-            hopLog("🚀  Đang teleport...", C.LIME)
-            -- Retry tối đa 3 lần
-            local teleported = false
-            for attempt = 1, 3 do
-                local ok = pcall(function()
-                    S.TS:TeleportToPlaceInstance(placeId, best.id, LP)
-                end)
-                if ok then
-                    teleported = true
-                    break
-                end
-                hopLog("⚠  Thử lần "..attempt.."/3...", C.ORANGE)
-                task.wait(2)
+            local ok=false
+            for i=1,3 do
+                ok=pcall(function() S.TS:TeleportToPlaceInstance(placeId,best.id,LP) end)
+                if ok then break end
+                hopLog("⚠  Thử "..i.."/3...",C.ORANGE); task.wait(2)
             end
-            if not teleported then
-                hopLog("❌  Teleport thất bại cả 3 lần", C.ROSE)
-            end
+            if not ok then hopLog("❌  Teleport fail",C.ROSE) end
         else
-            -- Không tìm được server cụ thể: không hop
-            hopLog("❌  Không tìm thấy server nào", C.ROSE)
+            hopLog("❌  Khong tim duoc server",C.ROSE)
         end
-
-        task.wait(8)
-        autoHopStart = tick(); isHopping = false
-        hopLog(string.format("⏳  Auto Hop: %02d:00", math.floor(HOP_INTERVAL/60)), C.PURPLE)
+        task.wait(8); autoHopStart=tick(); isHopping=false
+        hopLog(string.format("⏳  Auto Hop: %02d:00",math.floor(HOP_INTERVAL/60)),C.PURPLE)
+        pcall(function() BtnHop.Text="⟳ HOP SV"; BtnHop.TextColor3=C.PURPLE end)
     end)
 end
 
 -- ══════════════════════════════════════════════
---  BOUNTY TRACKING
+--  BOUNTY TRACKING + MAIN UPDATE LOOP
 -- ══════════════════════════════════════════════
 local LastBounty=-1; local LastDeathBounty=-1
 
 local function doHourReset()
-    local ts=os.time(); local hh=m_floor((ts%(86400))/3600); local mm=m_floor((ts%3600)/60)
-    local tstr=string.format("%02d:%02d",hh,mm)
-    table.insert(BphHistory,1,{time=tstr,bph=HourEarned,kills=Kills})
+    local ts=os.time(); local hh=m_floor((ts%86400)/3600); local mm=m_floor((ts%3600)/60)
+    table.insert(BphHistory,1,{time=string.format("%02d:%02d",hh,mm),bph=HourEarned,kills=Kills})
     if #BphHistory>5 then table.remove(BphHistory,#BphHistory) end
     SaveBphHist(); refreshHist()
     HourEarned=0; HourStart=os.time()
@@ -1521,7 +1249,6 @@ end)
 t_spawn(function()
     while t_wait(1) do
         local current=getRealBounty(); local net=TotalEarned-TotalLost
-
         pcall(function()
             if LastBounty==-1 then LastBounty=current; return end
             local gain=current-LastBounty
@@ -1535,13 +1262,10 @@ t_spawn(function()
             LastBounty=current
         end)
 
-        -- 4 CARDS
-        cEarned.Text=formatNumber(TotalEarned)
-        cKills.Text=tostring(Kills)
+        cEarned.Text=formatNumber(TotalEarned); cKills.Text=tostring(Kills)
         local total=m_floor(PlayedTime2)+(os.time()-SessionStart)
         cTime.Text=string.format("%dH %dM",m_floor(total/3600),m_floor((total%3600)/60))
 
-        -- TARGET CARD
         local tgt=getgenv().LockedTarget
         if tgt and tgt.Parent and isTargetValid(tgt) then
             local h=tgt:FindFirstChild("Humanoid")
@@ -1553,8 +1277,7 @@ t_spawn(function()
             StatusBadge.Text=getgenv().Retreating and "⚠  RETREAT" or "●  LOCKED"
             StatusBadge.TextColor3=getgenv().Retreating and C.ROSE or C.TEAL
         else
-            if getgenv().LockedTarget and
-               (not getgenv().LockedTarget.Parent or not isTargetValid(getgenv().LockedTarget)) then
+            if getgenv().LockedTarget then
                 pcall(function() restoreHitbox(getgenv().LockedTarget) end); getgenv().LockedTarget=nil
             end
             cTarget.Text="No Target"; cTargetS.Text="health: --"; cTargetS.TextColor3=C.DIM
@@ -1562,32 +1285,20 @@ t_spawn(function()
             StatusBadge.TextColor3=getgenv().Retreating and C.ROSE or C.DIM
         end
 
-        -- PROFILE PILLS
         local hp,mhp=0,0
         pcall(function()
             if LP.Character and LP.Character:FindFirstChild("Humanoid") then
                 hp=LP.Character.Humanoid.Health; mhp=LP.Character.Humanoid.MaxHealth
             end
         end)
-        iBounty.Text=formatNumber(current)
-        iHP.Text=(mhp>0 and m_floor(hp/mhp*100) or 0).."%"
-        iLost.Text=formatNumber(TotalLost)
-        net=TotalEarned-TotalLost; iNet.Text=formatNumber(net)
+        iBounty.Text=formatNumber(current); iHP.Text=(mhp>0 and m_floor(hp/mhp*100) or 0).."%"
+        iLost.Text=formatNumber(TotalLost); net=TotalEarned-TotalLost; iNet.Text=formatNumber(net)
         iNet.TextColor3=net>=0 and C.LIME or C.ROSE
-
-        -- RIGHT PANEL
         rBounty.Text=formatNumber(current); rHP.Text=(mhp>0 and m_floor(hp/mhp*100) or 0).."%"
         rLost.Text=formatNumber(TotalLost); rNet.Text=formatNumber(net); rNet.TextColor3=net>=0 and C.LIME or C.ROSE
-        local elapsed2=math.max(1,os.time()-HourStart)
-        local bphRate=m_floor(HourEarned/(elapsed2/3600))
-        rBPH.Text=formatNumber(bphRate).."/h"
-        local sessH=math.max(0.01,(os.time()-SessionStart)/3600)
-        rKills.Text=string.format("%.1f/h",Kills/sessH)
         local ping=0; pcall(function() ping=m_floor(LP:GetNetworkPing()*1000) end)
         rPing.Text=ping.."ms"
-        -- rRun updated by RunState monitor loop above
 
-        -- BPH BAR
         if os.time()-HourStart>=3600 then doHourReset() end
         local remain=math.max(0,3600-(os.time()-HourStart))
         local rm,rs=m_floor(remain/60),m_floor(remain%60)
@@ -1595,24 +1306,19 @@ t_spawn(function()
         BphRst.Text="reset "..rm.."m "..(rs<10 and "0" or "")..rs.."s"
         BphFill.Size=UDim2.new((3600-remain)/3600,0,1,0)
 
-        -- HOP TIMER
         local hopElapsed=tick()-autoHopStart; local hopRemain=math.max(0,HOP_INTERVAL-hopElapsed)
         local hrm=m_floor(hopRemain/60); local hrs=m_floor(hopRemain%60)
         if not isHopping then
-            HopTimerL.Text=string.format("⏳  Auto Hop: %02d:%02d",hrm,hrs)
-            HopProgFill.Size=UDim2.new(math.min(hopElapsed/HOP_INTERVAL,1),0,1,0)
-            local hopCol=hopRemain<60 and C.ORANGE or C.PURPLE
-            HopTimerL.TextColor3=hopCol; HopIcon.TextColor3=hopCol
+            BtnHop.Text=string.format("⟳ %02d:%02d",hrm,hrs)
+            BtnHop.TextColor3=hopRemain<60 and C.GOLD or C.PURPLE
         end
         if hopRemain<=0 and not isHopping then doHop() end
 
-        -- TOPBAR / FOOTER
         local srv=#S.P:GetPlayers()
         TopInfo.Text=ping.."ms  |  Players: "..srv
         TopFPS.Text="FPS "..CurrentFPS
         FooterL.Text="FPS: "..CurrentFPS.."  |  PING: "..ping.." ms"
 
-        -- AUTO SAVE
         if tick()-lastSave>30 then
             lastSave=tick(); PlayedTime2=PlayedTime2+(os.time()-SessionStart); SessionStart=os.time()
             SaveFile(TimeFile,PlayedTime2)
@@ -1620,4 +1326,4 @@ t_spawn(function()
     end
 end)
 
-print("DORA VIP v8 — BananaCat integrated!")
+print("DORA VIP v8 loaded!")
